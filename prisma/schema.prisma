@@ -1,0 +1,61 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  name          String?
+  createdAt     DateTime        @default(now())        
+  updatedAt     DateTime        @updatedAt
+  transactions  Transaction[]
+  categories    Category[]
+
+  @@map("users")
+}
+
+model Category {
+  id            String          @id @default(uuid())
+  name          String          // Ex: "Educação", "Contas Fixas", "Investimentos"
+  color         String?         // Para salvar as cores da planilha (ex: "azul", "amarelo")
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  createdAt     DateTime        @default(now())
+
+  @@map("categories")
+}
+
+model Transaction {
+  id            String            @id @default(uuid())
+  description   String            // Ex: "escola joão", "nutri gourmet"
+  amount        Decimal           @db.Decimal(10, 2)  // Valor do lançamento
+  date          DateTime          // Data da transação
+  status        TransactionStatus @default(PENDING) //PAID ou PENDING
+  type          TransactionType
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId    String?
+  category      Category?         @relation(fields: [categoryId], references: [id])
+  createdAt     DateTime          @default(now())        
+  updatedAt     DateTime          @updatedAt
+
+  @@map("transactions")
+
+  @@index([userId])
+}
+
+enum TransactionStatus {
+  PAID
+  PENDING
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
