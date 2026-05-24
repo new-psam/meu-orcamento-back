@@ -7,7 +7,7 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL
 });
 
-// 2. Cria o adaptador do PRisma
+// 2. Cria o adaptador do Prisma
 const adapter = new PrismaPg(pool);
 
 // 3. Passa o adaptdor para o construtor do PrismaClient
