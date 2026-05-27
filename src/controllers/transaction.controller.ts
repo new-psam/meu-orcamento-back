@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import { createTransactionSchema } from "../dtos/create-transaction.dto"
-import { z, ZodError } from "zod";
+import { uuid, z, ZodError } from "zod";
 import { getTransactionSchema } from "../dtos/get-transactions.dto";
 
 export const createTransaction = async (req: Request, res: Response) => {
@@ -100,4 +100,66 @@ export const getTransactions = async (req: Request, res: Response) => {
         }
         return res.status(500).json({ error: "Erro interno do servidor"})
     }
-}
+};
+
+export const getTransactionById = async (req: Request, res: Response) => {
+    try {
+        // o zod valida se o ID na URL existe e se tem o formato UUID
+        const paramsSchema = z.object({
+            id: z.uuid({message: "Formato de ID inválido"}),
+        })
+        const { id } = paramsSchema.parse(req.params); // PEgamos o ID direto da URL
+
+        // Mandamos o Prisma procurar a transação específica
+        const transaction = await prisma.transaction.findUnique({
+            where: { id },
+        });
+
+        // Se o prisma retornar nulo (não achou), devolvemos o nosso 404 customizado
+        if(!transaction) {
+            return res.status(404).json({ error: "Transação não encontrada"});
+        }
+
+        // se achou, devolvemos a transação com status 200
+        return res.status(200).json(transaction);
+    } catch (error) {
+        if (error instanceof ZodError) {
+            return res.status(400).json({ 
+                error: "Parâmetros inválidos",
+                details: z.flattenError(error).fieldErrors,
+            });
+        }
+        return res.status(500).json({error: "Erro interno do servidor"});
+    }
+};
+
+export const updateTransaction = async (req: Request, res: Response) => {
+    try {
+        // 1- validamos o ID da URL igual fizemos na rota de busca
+        const paramsSchema = z.object({
+            id: z.uuid({message: "Formato de ID inválido"}),
+        });
+        const { id } = paramsSchema.parse(req.params);
+
+        // 2. A Mágica do Zod: reaproveitamos o schema de criação, mas usamos o .partial()
+        // Isso diz ao Zod: "Aplique as mesmas regras, mas aceite se o usuário mandar só 1 ou 2 campos"
+        const data = createTransactionSchema.partial().parse(req.body);
+
+        const transaction =  await prisma.transaction.update({
+            where: { id },
+            data,
+        });
+
+        return res.status(200).json(transaction);
+    } catch (error) {
+        if (error instanceof ZodError) {
+            return  res.status(400).json({
+                error: "Dados de atualização inválidos",
+                message: z.flattenError(error).fieldErrors,
+            });
+        }
+        // Obs: Se o Prisma tentar atualizar um ID que não existe, ele cai aqui no 500
+        // (Podemos refinar esse erro de banco depois, mas para o TDD passar agora, é suficiente)
+        return res.status(500).json({ error: "Erro interno do servidor"});
+    }
+};

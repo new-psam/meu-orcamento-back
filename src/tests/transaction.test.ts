@@ -1,6 +1,7 @@
 import request from "supertest";
 import { app } from "../app";
 import { prisma } from "../config/prisma";
+import { validMockTransaction, mockTransactionsList } from "./mocks/transaction.mock";
 
 // 1. O SEQUESTRO (MOCK): Avisamos ao Jest para interceptar as chamadas do Prisma
 jest.mock("../config/prisma", ()=> ({
@@ -9,6 +10,8 @@ jest.mock("../config/prisma", ()=> ({
             create: jest.fn(), // Transforma a função de criar em uma função "espiã" vazia
             findMany: jest.fn(),
             count: jest.fn(),
+            findUnique: jest.fn(),
+            update: jest.fn(),
         },
     },
 }));
@@ -42,24 +45,11 @@ describe("Transaction API", ()=> {
 
     // --- CAMINHO FELIZ (HAPPY PATH) ---
     it("Deve criar uma transação com sucesso e retornar 201", async ()=> {
-        // A. Preparamos a resposta falsa que o banco deveria devolver
-        const mockTransaction = {
-            id: "uuid-falso-12345",
-            description: "Mensalidade da escola",
-            amount: 1500.50,
-            date: new Date("2026-05-23T10:00:00.000Z"),
-            type: "EXPENSE",
-            status: "PAID",
-            categoryId: null,
-            userId: "marcelino-id",
-            createdAt: new Date(),
-            updatedAt: new Date(), 
-        };
+        
+        // A. Ensinamos a nosssa função "espiã" a devolver esse objeto
+        (prisma.transaction.create as jest.Mock).mockResolvedValue(validMockTransaction);
 
-        // B. Ensinamos a nosssa função "espiã" a devolver esse objeto
-        (prisma.transaction.create as jest.Mock).mockResolvedValue(mockTransaction);
-
-        // C. Disparamos a requisição correta
+        // B. Disparamos a requisição correta
         const response = await request(app).post("/transactions").send({
             description: "Mensalidade da escola",
             amount: 1500.50,
@@ -69,9 +59,9 @@ describe("Transaction API", ()=> {
             userId: "marcelino-id",
         });
 
-        // D. Verificamos se tudo ocorreu perfeitamente
+        // C. Verificamos se tudo ocorreu perfeitamente
         expect(response.status).toBe(201);
-        expect(response.body).toHaveProperty("id", "uuid-falso-12345"); // O ID falso passou!
+        expect(response.body).toHaveProperty("id", "123e4567-e89b-12d3-a456-426614174000"); // O ID passou!
 
         // Garante que o Controller tentou salvar no banco exatamente 1 vez
         expect(prisma.transaction.create).toHaveBeenCalledTimes(1);
@@ -82,21 +72,9 @@ describe("Transaction API", ()=> {
 describe("GET /transactions", () => {
     // 1 - Valida o filtro de data e a paginação padrão (Pagina 1, Limite 10)
     it("Deve filtrar as transações por mês/ano e aplicar a paginação padrão", async () => {
-        const mockTransactions = [
-            {
-            id: "uuid-falso-1",
-            description: "Mensalidade da escola",
-            amount: 1500.50,
-            date: new Date("2026-05-10T10:00:00.000Z"),
-            type: "EXPENSE",
-            status: "PAID",
-            categoryId: null,
-            userId: "marcelino-id",
-            }
-        ];
-
+        
         // Ensinamos o findMany a devolver a lista e o count a devolver o total de registros
-        (prisma.transaction.findMany as jest.Mock).mockResolvedValue(mockTransactions);
+        (prisma.transaction.findMany as jest.Mock).mockResolvedValue(mockTransactionsList);
         (prisma.transaction.count as jest.Mock).mockResolvedValue(1);
 
         // Disparamos o GET enviando os Query Parameters (?month=5&year=2026&userId=marcelino-id)
@@ -152,4 +130,60 @@ describe("GET /transactions", () => {
         });
     });
 
+});
+
+describe("GET /transactions/:id", () => {
+
+    it("Deve retornar erro 404 se a transação não for encontrada", async () => {
+        // Simula que o banco procurou o ID e não achou nda (retornou null)
+        (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(null);
+
+        const response = await request(app).get("/transactions/00000000-0000-0000-0000-000000000000");
+
+        expect(response.status).toBe(404);
+        expect(response.body.error).toBe("Transação não encontrada");
+    });
+
+    it("Deve retornar a transação com status 200 se o ID existir", async () =>{
+        const mockTransaction = validMockTransaction;
+
+        //Simulamos que o banco encontrou a transação
+        (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(mockTransaction);
+
+        const response = await request(app).get("/transactions/123e4567-e89b-12d3-a456-426614174000");
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("description", "Mensalidade da escola");
+    });
+});
+
+// --- ATUALIZAR A TRANSAÇÃO ----
+describe("PUT /transactions/:id", () => {
+
+    it("Deve retornar erro 400 se enviar dados de atualização inválidos", async () => {
+        // Simulamos um usuário tentando atualizar o valor para um texto em vez de um número
+        const response = await request(app)
+            .put("/transactions/123e4567-e89b-12d3-a456-426614174000")
+            .send({amount: "mil reais" });
+
+            expect(response.status).toBe(400);
+            expect(response.body).toHaveProperty("error");
+    });
+
+    it("Deve atualizar a transação com sucesso e retornar o status 200", async ()=> {
+        // Preparamos o objeto que o banco vai devolver (Copiamos o mock e mudamos o status)
+        const updatedTransaction = {... validMockTransaction, status: "PENDING" };
+
+        //2. Ensinamos o Prisma a devolver a transação atualizada
+        (prisma.transaction.update as jest.Mock).mockResolvedValue(updatedTransaction);
+
+        //3. Disparamos o PUT querendo mudar o status para PENDING
+        const response = await request(app)
+            .put("/transactions/123e4567-e89b-12d3-a456-426614174000")
+            .send({ status: "PENDING" });
+
+        // 4. Verificamos se deu tudo certo (Isso vai falhar n afase vermelha)
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("status", "PENDING");
+    });
 });
