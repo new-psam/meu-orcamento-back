@@ -12,6 +12,7 @@ jest.mock("../config/prisma", ()=> ({
             count: jest.fn(),
             findUnique: jest.fn(),
             update: jest.fn(),
+            delete: jest.fn(),
         },
     },
 }));
@@ -185,5 +186,30 @@ describe("PUT /transactions/:id", () => {
         // 4. Verificamos se deu tudo certo (Isso vai falhar n afase vermelha)
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty("status", "PENDING");
+    });
+});
+
+// --- DELETAR TRANSAÇÃO (Delete /:id) ----
+describe("DELETE /transactions/:id", () => {
+    it("Deve retornar erro 400 se o ID fornecido não for válido", async () =>{
+        // tentamos deletar enviando um texto qualquer no lugar do ID
+        const response = await request(app).delete("/transactions/id-falso-nao-uuid");
+
+        expect(response.status).toBe(400);
+        expect(response.body).toHaveProperty("error");
+    });
+
+    it("Deve deletar a transação com sucesso e retornar status 200", async () => {
+        // Ensinamos o Prisma a fingir que deletou retornando os dados do mock
+        (prisma.transaction.delete as jest.Mock).mockResolvedValue(validMockTransaction);
+
+        //Disparamos o DELETE com o UUID correto
+        const response = await request(app).delete("/transactions/123e4567-e89b-12d3-a456-426614174000");
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("message", "Transação deletada com sucesso");
+    
+        // Garantinos que o comando de deletar do Prisma foi chamado
+        expect(prisma.transaction.delete).toHaveBeenCalledTimes(1);
     });
 });

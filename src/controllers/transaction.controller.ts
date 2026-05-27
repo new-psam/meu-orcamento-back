@@ -1,8 +1,9 @@
 import { Request, Response } from "express";
 import { prisma } from "../config/prisma";
 import { createTransactionSchema } from "../dtos/create-transaction.dto"
-import { uuid, z, ZodError } from "zod";
+import { z, ZodError } from "zod";
 import { getTransactionSchema } from "../dtos/get-transactions.dto";
+import { Prisma } from "@prisma/client";
 
 export const createTransaction = async (req: Request, res: Response) => {
     try {
@@ -108,7 +109,7 @@ export const getTransactionById = async (req: Request, res: Response) => {
         const paramsSchema = z.object({
             id: z.uuid({message: "Formato de ID inválido"}),
         })
-        const { id } = paramsSchema.parse(req.params); // PEgamos o ID direto da URL
+        const { id } = paramsSchema.parse(req.params); // Pegamos o ID direto da URL
 
         // Mandamos o Prisma procurar a transação específica
         const transaction = await prisma.transaction.findUnique({
@@ -158,8 +159,45 @@ export const updateTransaction = async (req: Request, res: Response) => {
                 message: z.flattenError(error).fieldErrors,
             });
         }
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025'){
+            return res.status(404).json({error: "Transação não encontrada"})
+        }
         // Obs: Se o Prisma tentar atualizar um ID que não existe, ele cai aqui no 500
         // (Podemos refinar esse erro de banco depois, mas para o TDD passar agora, é suficiente)
         return res.status(500).json({ error: "Erro interno do servidor"});
+    }
+};
+
+export const deleteTransaction = async (req: Request, res: Response) => {
+    try {
+        // Validamos o ID da URL usando o nosso escudo Zod
+        const paramsSchema = z.object({
+            id: z.uuid({message: "Formato de ID inválido"}),
+        });
+
+        const { id } = paramsSchema.parse(req.params);
+
+        // mandamos para o Prisma deletar a transação
+        await prisma.transaction.delete({
+            where: { id },
+        });
+
+        // Devolvemos a mensagem exata que o nosso teste está esperando
+        return res.status(200).json({message: "Transação deletada com sucesso"});
+
+    } catch (error) {
+        if (error instanceof ZodError) {
+            return res.status(400).json({
+                error: "ID inválido",
+                details: z.flattenError(error).fieldErrors,
+            });
+        }
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025'){
+            return res.status(404).json({error: "Transação não encontrada"})
+        }
+        // Obs: Se o Prisma tentar atualizar um ID que não existe, ele cai aqui no 500
+        // (Podemos refinar esse erro de banco depois, mas para o TDD passar agora, é suficiente)
+        return res.status(500).json({ error: "Erro interno do servidor"});
+
     }
 };

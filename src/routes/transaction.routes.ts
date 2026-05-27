@@ -3,7 +3,8 @@ import {
     createTransaction, 
     getTransactionById, 
     getTransactions,
-    updateTransaction
+    updateTransaction,
+    deleteTransaction
 } from '../controllers/transaction.controller';
 
 const transactionRoutes = Router();
@@ -13,6 +14,7 @@ transactionRoutes.post("/", createTransaction);
 transactionRoutes.get("/", getTransactions);
 transactionRoutes.get("/:id", getTransactionById);
 transactionRoutes.put("/:id", updateTransaction);
+transactionRoutes.delete("/:id", deleteTransaction);
 
 
 export { transactionRoutes };
