@@ -14,6 +14,15 @@ const options = {
                 description: "Servidor Local",
             },
         ],
+        components: {
+            securitySchemes: {
+                bearerAuth: {
+                    type: "http",
+                    scheme: "bearer",
+                    bearerFormat: "JWT",
+                },
+            },
+        },
     },
     // Aqui indicamos onde o Swagger deve procurar as anotações para gerar a vitrine
     apis: ["./src/routes/*.ts", "./src/docs/*.yaml"],

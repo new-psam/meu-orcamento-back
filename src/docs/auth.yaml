@@ -1,0 +1,62 @@
+paths:
+  /auth/signup:
+    post:
+      summary: "Registrar um novo usuário"
+      tags: [Autenticação]
+      description: "Cria uma nova conta de usuário com as informações fornecidas."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+              properties:
+                name:
+                  type: string
+                  example: "João Silva"
+                email:
+                  type: string
+                  format: email
+                  example: "joao.silva@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "senha123"
+      responses:
+        "201":
+          description: "Usuário criado com sucesso"
+        "400":
+          description: "Requisição inválida - Dados inválidos ou E-mail já em uso"
+
+  /auth/signin:
+    post:
+      summary: "Autenticar um usuário"
+      tags: [Autenticação]
+      description: "Autentica um usuário com email e senha, retornando um token JWT para acesso protegido."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: "joao.silva@example.com"
+                password:
+                  type: string
+                  format: password
+                  example: "senha123"
+      responses:
+        "200":
+          description: "Login realizado com sucesso"
+        "400":
+          description: "Credenciais inválidas"
