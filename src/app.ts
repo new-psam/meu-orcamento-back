@@ -3,6 +3,7 @@ import  express  from "express"
 import { transactionRoutes } from "./routes/transaction.routes";
 import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger";
+import { authRoutes } from "./routes/auth.routes";
 
 const app = express();
 
@@ -12,6 +13,7 @@ app.use(express.json());
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Nossas rotas de negócio
+app.use("/auth", authRoutes);
 app.use("/transactions", transactionRoutes);
 
 export { app };
