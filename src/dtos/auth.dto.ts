@@ -7,5 +7,13 @@ export const signupSchema = z.object({
     password: z.string().min(6, "A senha deve ter no mínimo 6 caracteres"),
 });
 
+export const signinSchema = z.object({
+    email: z.email("Formato de email inválido"),
+    password: z.string().min(6, "A senha deve ter no mínimo 6 caracteres"),
+});
+
+//Extrai a tipagem do TypeScript magicamente a partir do Zod
+export type SigninDTO = z.infer<typeof signinSchema>;
+
 //Extrai a tipagem do TypeScript magicamente a partir do Zod
 export type SignupDTO = z.infer<typeof signupSchema>;
