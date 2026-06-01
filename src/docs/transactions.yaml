@@ -3,6 +3,8 @@ paths:
     post:
       summary: Cria uma nova transação
       tags: [Transactions]
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -15,7 +17,6 @@ paths:
                 - date
                 - type
                 - status
-                - userId
               properties:
                 description:
                   type: string
@@ -35,10 +36,10 @@ paths:
                   type: string
                   enum: [PENDING, PAID]
                   example: "PAID"
-                userId:
-                  type: string
-                  format: uuid
-                  example: "123e4567-e89b-42d3-a456-426614174000"
+                # userId:
+                #   type: string
+                #   format: uuid
+                #   example: "123e4567-e89b-42d3-a456-426614174000"
       responses:
         201:
           description: Transação criada com sucesso
@@ -48,14 +49,16 @@ paths:
     get:
       summary: Lista as transações do usuário (com filtros e paginação)
       tags: [Transactions]
+      security:
+        - bearerAuth: []
       parameters:
-        - in: query
-          name: userId
-          required: true
-          schema:
-            type: string
-            format: uuid
-          description: ID do usuário (mesmo UUID usado no POST)
+        #   - in: query
+        #     name: userId
+        #     required: true
+        #     schema:
+        #       type: string
+        #       format: uuid
+        # description: ID do usuário (mesmo UUID usado no POST)
         - in: query
           name: page
           schema:
@@ -88,6 +91,8 @@ paths:
     get:
       summary: Busca uma transação específica pelo ID
       tags: [Transactions]
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -107,6 +112,8 @@ paths:
     put:
       summary: Atualiza a transação existente
       tags: [Transactions]
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -137,6 +144,8 @@ paths:
     delete:
       summary: Deleta uma transação específica
       tags: [Transactions]
+      security:
+        - bearerAuth: []
       parameters:
         - in: path
           name: id

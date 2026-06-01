@@ -2,6 +2,13 @@ import request from "supertest";
 import { app } from "../app";
 import { prisma } from "../config/prisma";
 import { validMockTransaction, mockTransactionsList } from "./mocks/transaction.mock";
+import jwt from "jsonwebtoken";
+
+const mockToken = jwt.sign(
+    { userId: "123e4567-e89b-12d3-a456-426614174000" },
+    process.env.JWT_SECRET || "segredo_fallback",
+        
+);
 
 // 1. O SEQUESTRO (MOCK): Avisamos ao Jest para interceptar as chamadas do Prisma
 jest.mock("../config/prisma", ()=> ({
@@ -28,11 +35,12 @@ describe("Transaction API", ()=> {
         //Simulamos um POST para /transactions faltando a 'description' e outros campos
         const response = await request(app)
             .post("/transactions")
+            .set("Authorization", `Bearer ${mockToken}`) // Simula o envio do token de autenticação
             .send({
                 amount: 1500.50,
                 date: "2026-05-23T10:00:00.000Z",
                 type: "EXPENSE",
-                userId: "marcelino-id"
+                // userId: "marcelino-id"
             });
 
         // As nossas asserções ( o que esperamos que aconteça)
@@ -51,13 +59,16 @@ describe("Transaction API", ()=> {
         (prisma.transaction.create as jest.Mock).mockResolvedValue(validMockTransaction);
 
         // B. Disparamos a requisição correta
-        const response = await request(app).post("/transactions").send({
-            description: "Mensalidade da escola",
-            amount: 1500.50,
-            date: "2026-05-23T10:00:00.000Z",
-            type: "EXPENSE",
-            status: "PAID",
-            userId: "marcelino-id",
+        const response = await request(app)
+            .post("/transactions")
+            .set("Authorization", `Bearer ${mockToken}`)
+            .send({
+                description: "Mensalidade da escola",
+                amount: 1500.50,
+                date: "2026-05-23T10:00:00.000Z",
+                type: "EXPENSE",
+                status: "PAID",
+            // userId: "marcelino-id",
         });
 
         // C. Verificamos se tudo ocorreu perfeitamente
@@ -81,7 +92,8 @@ describe("GET /transactions", () => {
         // Disparamos o GET enviando os Query Parameters (?month=5&year=2026&userId=marcelino-id)
         const response = await request(app)
             .get("/transactions")
-            .query({ month: "5", year: "2026", userId: "marcelino-id"});
+            .set("Authorization", `Bearer ${mockToken}`)
+            .query({ month: "5", year: "2026" });
 
         // Asserções das respostas HTTP
         expect(response.status).toBe(200);
@@ -97,7 +109,7 @@ describe("GET /transactions", () => {
         // Asserção do Prisma: Garante que o Controller calculou os limites de data e paginação certos
         expect(prisma.transaction.findMany).toHaveBeenCalledWith({
             where: {
-                userId: "marcelino-id",
+                userId: "123e4567-e89b-12d3-a456-426614174000", // O userID do token
                 date: {
                     gte: new Date("2026-05-01T00:00:00.000Z"),
                     lte: new Date("2026-05-31T23:59:59.999Z"),
@@ -116,7 +128,8 @@ describe("GET /transactions", () => {
 
         const response = await request(app)
             .get("/transactions")
-            .query({ month: "5", year: "2026", userId: "marcelino-id", page: "2", limit: "5" });
+            .set("Authorization", `Bearer ${mockToken}`)
+            .query({ month: "5", year: "2026", page: "2", limit: "5" });
 
         expect(response.status).toBe(200);
         expect(response.body.meta.page).toBe(2);
@@ -139,7 +152,8 @@ describe("GET /transactions/:id", () => {
         // Simula que o banco procurou o ID e não achou nda (retornou null)
         (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(null);
 
-        const response = await request(app).get("/transactions/00000000-0000-0000-0000-000000000000");
+        const response = await request(app)
+        .get("/transactions/00000000-0000-0000-0000-000000000000").set("Authorization", `Bearer ${mockToken}`);
 
         expect(response.status).toBe(404);
         expect(response.body.error).toBe("Transação não encontrada");
@@ -151,7 +165,9 @@ describe("GET /transactions/:id", () => {
         //Simulamos que o banco encontrou a transação
         (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(mockTransaction);
 
-        const response = await request(app).get("/transactions/123e4567-e89b-12d3-a456-426614174000");
+        const response = await request(app)
+            .get("/transactions/123e4567-e89b-12d3-a456-426614174000")
+            .set("Authorization", `Bearer ${mockToken}`);
 
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty("description", "Mensalidade da escola");
@@ -165,6 +181,7 @@ describe("PUT /transactions/:id", () => {
         // Simulamos um usuário tentando atualizar o valor para um texto em vez de um número
         const response = await request(app)
             .put("/transactions/123e4567-e89b-12d3-a456-426614174000")
+            .set("Authorization", `Bearer ${mockToken}`)
             .send({amount: "mil reais" });
 
             expect(response.status).toBe(400);
@@ -181,6 +198,7 @@ describe("PUT /transactions/:id", () => {
         //3. Disparamos o PUT querendo mudar o status para PENDING
         const response = await request(app)
             .put("/transactions/123e4567-e89b-12d3-a456-426614174000")
+            .set("Authorization", `Bearer ${mockToken}`)
             .send({ status: "PENDING" });
 
         // 4. Verificamos se deu tudo certo (Isso vai falhar n afase vermelha)
@@ -193,7 +211,9 @@ describe("PUT /transactions/:id", () => {
 describe("DELETE /transactions/:id", () => {
     it("Deve retornar erro 400 se o ID fornecido não for válido", async () =>{
         // tentamos deletar enviando um texto qualquer no lugar do ID
-        const response = await request(app).delete("/transactions/id-falso-nao-uuid");
+        const response = await request(app)
+            .delete("/transactions/id-falso-nao-uuid")
+            .set("Authorization", `Bearer ${mockToken}`);
 
         expect(response.status).toBe(400);
         expect(response.body).toHaveProperty("error");
@@ -204,7 +224,9 @@ describe("DELETE /transactions/:id", () => {
         (prisma.transaction.delete as jest.Mock).mockResolvedValue(validMockTransaction);
 
         //Disparamos o DELETE com o UUID correto
-        const response = await request(app).delete("/transactions/123e4567-e89b-12d3-a456-426614174000");
+        const response = await request(app)
+            .delete("/transactions/123e4567-e89b-12d3-a456-426614174000")
+            .set("Authorization", `Bearer ${mockToken}`);
 
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty("message", "Transação deletada com sucesso");

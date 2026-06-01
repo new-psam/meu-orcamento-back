@@ -9,7 +9,7 @@ export const createTransactionSchema = z.object({
     type: z.enum(['INCOME', 'EXPENSE']),
     status: z.enum(['PAID', 'PENDING']).optional().default('PENDING'),
     categoryId: z.uuid().optional(),
-    userId: z.string(), //O ID do usuário que criamos no Prisma Studio
+    //userId: z.string(), //O ID do usuário que criamos no Prisma Studio
 });
 
 // 2. Extraímos o tipo do TypeScript automaticamente a partir di Zod

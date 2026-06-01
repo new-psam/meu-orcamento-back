@@ -4,11 +4,14 @@ import { createTransactionSchema } from "../dtos/create-transaction.dto"
 import { z, ZodError } from "zod";
 import { getTransactionSchema } from "../dtos/get-transactions.dto";
 import { Prisma } from "@prisma/client";
+import { AuthRequest } from "../middlewares/auth.middleware";
 
-export const createTransaction = async (req: Request, res: Response) => {
+export const createTransaction = async (req: AuthRequest, res: Response) => {
     try {
         //1. Validação : Passa os dados recebidos pelo nosso "porteiro" zod
         const data = createTransactionSchema.parse(req.body);
+
+        const userId = req.userId!; // Pegamos o userID que o nosso middleware de autenticação injetou na requisição
 
         // 2. Banco de dados: Manda o Prisma criar a linha na tabela
         const transaction = await prisma.transaction.create({
@@ -18,7 +21,7 @@ export const createTransaction = async (req: Request, res: Response) => {
                 date: data.date, // O frontend vai mandar uma string ISO, o prisma converte para datetime
                 type: data.type,
                 status: data.status,
-                userId: data.userId,
+                userId: userId, // O ID do usuário vem do token, não da requisição
                 categoryId: data.categoryId,
             },
         });
@@ -48,8 +51,10 @@ export const createTransaction = async (req: Request, res: Response) => {
     }
 };
 
-export const getTransactions = async (req: Request, res: Response) => {
+export const getTransactions = async (req: AuthRequest, res: Response) => {
     try {
+
+        const userIdToken = req.userId!; // Pegamos o userID que o nosso middleware de autenticação injetou na requisição
         // 1. O zod valida e já converte os números
         const query = getTransactionSchema.parse(req.query);
 
@@ -57,29 +62,36 @@ export const getTransactions = async (req: Request, res: Response) => {
         const skip = (query.page - 1) * query.limit;
         const take = query.limit;
 
-        // 3. lógica das datas (PEgar o primeiro e o último segundo do mês no padrão UTC)
-        const startDate = new Date(Date.UTC(query.year, query.month -1, 1, 0, 0, 0, 0));
-        const endDate = new Date(Date.UTC(query.year, query.month, 0, 23, 59, 59, 999));
-
-        // 4. Montamos o filtro (Where)
-        const where = {
-            userId: query.userId,
-            date: {
-                gte: startDate,
-                lte: endDate,
-            },
+        
+        // 3. Montamos a base do filtro (Wher) apenas com o userID, para garantir que o usuário só veja as próprias transações
+        const where: any = {
+            userId: userIdToken, 
         };
 
-        //5. Disparamos o banco de dados (Buscamos os dados e o total de registros ao mesmo tempo)
-        const [transactions, total] = await Promise.all([
-            prisma.transaction.findMany({
+        // 4. Só calculamos e adicionamos a regra de datas SE o mês e o ano vieram na query (são opcionais)
+        if (query.month && query.year) {
+            const startDate = new Date(Date.UTC(query.year, query.month -1, 1, 0, 0, 0, 0));
+            const endDate = new Date(Date.UTC(query.year, query.month, 0, 23, 59, 59, 999));
+
+            // Injeta o filtro de data dentro do objeto where
+            where.date = {
+                gte: startDate,
+                lte: endDate,
+            };
+
+        }
+
+        //5. Passamos a variável "where" pronta para o prisma e adicionamos o orderBy
+        const transactions = await prisma.transaction.findMany({
                 where,
                 take,
                 skip,
                 orderBy: { date: 'desc'},
-            }),
-            prisma.transaction.count({ where })
-        ]);
+        });
+        const total = await prisma.transaction.count({
+             where // Usa o mesmo objeto para contar o total correto, incluindo o filtro de data se tiver sido aplicado
+        });
+        
 
         // 6. Devolvemos no formato paginado que a industria usa
         return res.status(200).json({
@@ -103,7 +115,7 @@ export const getTransactions = async (req: Request, res: Response) => {
     }
 };
 
-export const getTransactionById = async (req: Request, res: Response) => {
+export const getTransactionById = async (req: AuthRequest, res: Response) => {
     try {
         // o zod valida se o ID na URL existe e se tem o formato UUID
         const paramsSchema = z.object({
@@ -113,7 +125,7 @@ export const getTransactionById = async (req: Request, res: Response) => {
 
         // Mandamos o Prisma procurar a transação específica
         const transaction = await prisma.transaction.findUnique({
-            where: { id },
+            where: { id, userId: req.userId! }, // Garantimos que o usuário só possa acessar suas próprias transações
         });
 
         // Se o prisma retornar nulo (não achou), devolvemos o nosso 404 customizado
@@ -134,7 +146,7 @@ export const getTransactionById = async (req: Request, res: Response) => {
     }
 };
 
-export const updateTransaction = async (req: Request, res: Response) => {
+export const updateTransaction = async (req: AuthRequest, res: Response) => {
     try {
         // 1- validamos o ID da URL igual fizemos na rota de busca
         const paramsSchema = z.object({
@@ -147,9 +159,9 @@ export const updateTransaction = async (req: Request, res: Response) => {
         const data = createTransactionSchema.partial().parse(req.body);
 
         const transaction =  await prisma.transaction.update({
-            where: { id },
+            where: { id , userId: req.userId! },
             data,
-        });
+    });
 
         return res.status(200).json(transaction);
     } catch (error) {
@@ -168,7 +180,7 @@ export const updateTransaction = async (req: Request, res: Response) => {
     }
 };
 
-export const deleteTransaction = async (req: Request, res: Response) => {
+export const deleteTransaction = async (req: AuthRequest, res: Response) => {
     try {
         // Validamos o ID da URL usando o nosso escudo Zod
         const paramsSchema = z.object({
@@ -179,7 +191,7 @@ export const deleteTransaction = async (req: Request, res: Response) => {
 
         // mandamos para o Prisma deletar a transação
         await prisma.transaction.delete({
-            where: { id },
+            where: { id, userId: req.userId! },
         });
 
         // Devolvemos a mensagem exata que o nosso teste está esperando
