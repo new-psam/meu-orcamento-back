@@ -27,8 +27,15 @@ model Category {
   userId        String
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[]
+
+  // --- SUBCATEGORIAS --
+  parentId      String?         // Se for null, é uma categoria Pai. Se tiver um ID, é Filha
+  parent        Category?       @relation("SubCategories", fields: [parentId], references: [id])
+  SubCategories Category[]      @relation("SubCategories")
+  
   createdAt     DateTime        @default(now())
 
+  @@unique([name, userId])
   @@map("categories")
 }
 
