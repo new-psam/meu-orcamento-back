@@ -1,0 +1,36 @@
+paths:
+  /categories:
+    post:
+      summary: Cria uma nova categoria
+      tags: [Categories]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  description: O nome da categoria (não pode ser duplicado para o mesmo usuário)
+                  example: "Alimentação"
+                color:
+                  type: string
+                  description: A cor de exibição da categoria no frontend
+                  example: "azul"
+                parentId:
+                  type: string
+                  format: uuid
+                  description: O ID da categoria pai, se for uma subcategoria
+                  example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        201:
+          description: Categoria criada com sucesso
+        400:
+          description: Dados inválidos ou você já possui uma categoria com esse nome
+        401:
+          description: Token de autenticação não fornecido ou inválido

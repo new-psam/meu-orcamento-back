@@ -59,7 +59,7 @@ export const signin = async (req: Request, res: Response) => {
 
             // 2. Verificar se o usuário existe
             const user = await prisma.user.findUnique({
-                where: { email },
+                where: { email : email },
             });
 
             if (!user) {

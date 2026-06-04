@@ -8,7 +8,7 @@ export const createTransactionSchema = z.object({
     date: z.iso.datetime(), //Exige um formato de data válido (ISO 8601)
     type: z.enum(['INCOME', 'EXPENSE']),
     status: z.enum(['PAID', 'PENDING']).optional().default('PENDING'),
-    categoryId: z.uuid().optional(),
+    categoryId: z.uuid("ID da categoria inváido").optional(),
     //userId: z.string(), //O ID do usuário que criamos no Prisma Studio
 });
 

@@ -36,10 +36,10 @@ paths:
                   type: string
                   enum: [PENDING, PAID]
                   example: "PAID"
-                # userId:
-                #   type: string
-                #   format: uuid
-                #   example: "123e4567-e89b-42d3-a456-426614174000"
+                categoryId:
+                  type: string
+                  format: uuid
+                  description: ID da categoria vinculada à transação (opcional)
       responses:
         201:
           description: Transação criada com sucesso
