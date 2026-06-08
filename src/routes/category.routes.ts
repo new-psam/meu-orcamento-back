@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { createCategorySchema } from '../dtos/create-category.dto';
-import { createCategory } from '../controllers/category.controller';
+import { createCategory, getCategories } from '../controllers/category.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
 
@@ -10,5 +10,6 @@ const router = Router();
 router.use(authMiddleware);
 
 router.post("/", createCategory);
+router.get("/", getCategories);
 
 export { router as categoryRoutes };

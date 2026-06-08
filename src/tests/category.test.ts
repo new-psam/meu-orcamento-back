@@ -15,6 +15,7 @@ jest.mock('../config/prisma', () => ({
             category: {
                 create: jest.fn(),
                 findFirst: jest.fn(),
+                findMany: jest.fn(),
             },
         },
 }));
@@ -98,4 +99,53 @@ describe("Category API - POST / categories", () => {
         expect(response.body).toHaveProperty('error', "Você já possui uma categoria com esse nome");
         expect(prisma.category.create).not.toHaveBeenCalled();
     }); 
+});
+
+describe ("Category API - GET / categories", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    // Teste 1: Segurança na porta
+    it("Deve retornar erro 401 se o token de autenticação não for fornecido", async () => {
+        const response = await request(app)
+            .get('/categories');
+
+        expect(response.status).toBe(401);
+        expect(response.body).toHaveProperty('message', "Token de autenticação não fornecido");
+        expect(prisma.category.findMany).not.toHaveBeenCalled();
+    });
+
+    // 2. Teste 2: Usuário novo (sem categorias)
+    it("Deve retornar uma lista vazia (status 200) se o usuário não tiver categorias", async () => {
+        // Simulamos o banco retornando um array vazio
+        (prisma.category.findMany as jest.Mock).mockResolvedValue([]);
+
+        const response = await request(app)
+            .get('/categories')
+            .set('Authorization', `Bearer ${mockToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual([]);
+        expect(prisma.category.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    // 3. Teste 3: Caminho Feliz (com categorias)
+    it("Deve retornar uma lista de categorias (status 200) se o usuário tiver categorias", async () => {
+        // Simulamos o banco retornando uma lista de categorias
+        const mockCategories = [
+            { id: "234t4567-e89b-12d3-a456-426614174000", name: "alimentação", userId: "123e4567-e89b-12d3-a456-426614174000" },
+            { id: "623e4567-e89b-12d3-a456-426614174001", name: "transporte", userId: "123e4567-e89b-12d3-a456-426614174000" }
+        ];
+        (prisma.category.findMany as jest.Mock).mockResolvedValue(mockCategories);
+
+        const response = await request(app)
+            .get('/categories')
+            .set('Authorization', `Bearer ${mockToken}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveLength(2);
+        expect(response.body[0]).toHaveProperty("name", "alimentação");
+        expect(prisma.category.findMany).toHaveBeenCalledTimes(1);
+    });
 });

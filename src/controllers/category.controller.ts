@@ -48,3 +48,17 @@ export const createCategory = async (req: AuthRequest, res: Response) => {
         return res.status(500).json({ error: "Erro interno do servidor" });
     }
 };
+
+export const getCategories = async (req: AuthRequest, res: Response) => {
+    try {
+        const userId = req.userId!;
+        const categories = await prisma.category.findMany({
+            where: { userId },
+            orderBy: { name: 'asc' },
+        });
+        return res.status(200).json(categories);
+    } catch (error) {
+        
+        return res.status(500).json({ error: "Erro interno do servidor" });
+    }
+};
