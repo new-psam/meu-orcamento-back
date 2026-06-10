@@ -16,6 +16,8 @@ jest.mock('../config/prisma', () => ({
                 create: jest.fn(),
                 findFirst: jest.fn(),
                 findMany: jest.fn(),
+                put: jest.fn(),
+                update: jest.fn(),
             },
         },
 }));
@@ -148,4 +150,96 @@ describe ("Category API - GET / categories", () => {
         expect(response.body[0]).toHaveProperty("name", "alimentação");
         expect(prisma.category.findMany).toHaveBeenCalledTimes(1);
     });
+});
+
+describe("Category API - PUT / categories/:id", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    // Teste 1: Porta Trancada
+    it("Deve retornar erro 401 se o token de autenticação não for fornecido", async () => {
+        const response = await request(app)
+            .put('/categories/623e4567-e89b-12d3-a456-426614174001')
+            .send({ name: "Lazer", color: "verde" });
+
+        expect(response.status).toBe(401);
+     });
+
+     // Teste 2: Categoria fantasma (não existe ou é de outro usuário)
+     it("Deve retornar erro 404 se a categoria não existir ou pertencer a outro usuário", async () => {
+        (prisma.category.findFirst as jest.Mock).mockResolvedValue(null); // simula categoria não encontrada
+
+        const response = await request(app)
+            .put('/categories/623e4567-e89b-12d3-a456-426614174001')
+            .set('Authorization', `Bearer ${mockToken}`)
+            .send({ name: "Lazer", color: "verde" });
+
+        expect(response.status).toBe(404);
+        expect(response.body).toHaveProperty('error', "Categoria não encontrada");
+     });
+
+     // Teste 3: Conflito de nomes (outra categoria com o mesmo nome)
+     it("Deve retornar erro 400 se já existir outra categoria com o mesmo nome para o usuário", async () => {
+        // 1 - Simulamos a categoria atual sendo encontrada
+        (prisma.category.findFirst as jest.Mock)
+            .mockResolvedValueOnce({
+                id: "623e4567-e89b-12d3-a456-426614174001",
+                name: "Alimentação",
+                color: "azul",
+                userId: "123e4567-e89b-12d3-a456-426614174000",
+            })
+
+        // 2 - Simulamos que existe outra categoria com o nome "Lazer"
+        
+            .mockResolvedValueOnce({
+                id: "723e4567-e89b-12d3-a456-426614174002",
+                name: "Lazer",
+                color: "verde",
+                userId: "123e4567-e89b-12d3-a456-426614174000",
+            });
+
+        const response = await request(app)
+            .put('/categories/623e4567-e89b-12d3-a456-426614174001')
+            .set('Authorization', `Bearer ${mockToken}`)
+            .send({ name: "Lazer", color: "verde" });
+
+        expect(response.status).toBe(400);
+        expect(response.body).toHaveProperty('error', "Você já possui uma categoria com esse nome");
+     });
+
+     // Teste 4: Atualização bem-sucedida
+     it("Deve atualizar a categoria com sucesso e retornar status 200", async () => {
+        // 1 - Simulamos a categoria atual sendo encontrada
+        (prisma.category.findFirst as jest.Mock)
+            .mockResolvedValueOnce({
+                id: "623e4567-e89b-12d3-a456-426614174001",
+                name: "Alimentação",
+                color: "azul",
+                userId: "123e4567-e89b-12d3-a456-426614174000",
+            });
+
+        // 2 - Simulamos que não existe outra categoria com o nome "Lazer"
+            (prisma.category.findFirst as jest.Mock)
+            .mockResolvedValueOnce(null);
+
+        // 3 - Simulamos a atualização bem-sucedida
+        (prisma.category.update as jest.Mock).mockResolvedValue({
+            id: "623e4567-e89b-12d3-a456-426614174001",
+            name: "Lazer",
+            color: "verde",
+            userId: "123e4567-e89b-12d3-a456-426614174000",
+        });
+
+        const response = await request(app)
+            .put('/categories/623e4567-e89b-12d3-a456-426614174001')
+            .set('Authorization', `Bearer ${mockToken}`)
+            .send({ name: "Lazer", color: "verde" });
+
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty('id', "623e4567-e89b-12d3-a456-426614174001");
+        expect(response.body).toHaveProperty('name', "Lazer");
+        expect(response.body).toHaveProperty('color', "verde");
+        expect(prisma.category.update).toHaveBeenCalledTimes(1);
+     });
 });

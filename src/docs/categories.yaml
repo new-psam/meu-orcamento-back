@@ -34,3 +34,53 @@ paths:
           description: Dados inválidos ou você já possui uma categoria com esse nome
         401:
           description: Token de autenticação não fornecido ou inválido
+
+    get:
+      summary: Lista todas as categorias do usuário logado
+      tags: [Categories]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Lista de categorias retornada com sucesso (em ordem alfabética)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                      description: O ID da categoria
+                      example: "123e4567-e89b-12d3-a456-426614174000"
+                    name:
+                      type: string
+                      description: O nome normalizado da categoria
+                      example: "Alimentação"
+                    color:
+                      type: string
+                      nullable: true
+                      description: A cor de exibição da categoria no frontend
+                      example: "azul"
+                    parentId:
+                      type: string
+                      format: uuid
+                      nullable: true
+                      description: O ID da categoria pai (retorna null se for uma categoria  principal)
+                      example: null
+                    userId:
+                      type: string
+                      format: uuid
+                      description: O ID do usuário dono da categoria
+                      example: "123e4567-e89b-12d3-a456-426614174000"
+                    createdAt:
+                      type: string
+                      format: date-time
+                      description: A data e hora de criação da categoria
+                      example: "2024-01-01T12:00:00Z"
+        401:
+          description: Token de autenticação não fornecido ou inválido
+        500:
+          description: Erro interno do servidor

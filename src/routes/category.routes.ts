@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import { createCategorySchema } from '../dtos/create-category.dto';
-import { createCategory, getCategories } from '../controllers/category.controller';
+import { createCategory, getCategories, updateCategory } from '../controllers/category.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
 
@@ -11,5 +10,6 @@ router.use(authMiddleware);
 
 router.post("/", createCategory);
 router.get("/", getCategories);
+router.put("/:id", updateCategory);
 
 export { router as categoryRoutes };
