@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { createCategory, getCategories, updateCategory } from '../controllers/category.controller';
+import {
+    createCategory,
+    getCategories,
+    updateCategory,
+    deleteCategory 
+} from '../controllers/category.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
 
@@ -11,5 +16,5 @@ router.use(authMiddleware);
 router.post("/", createCategory);
 router.get("/", getCategories);
 router.put("/:id", updateCategory);
-
+router.delete("/:id", deleteCategory);
 export { router as categoryRoutes };

@@ -4,6 +4,7 @@ import { updateCategorySchema } from "../dtos/update-category.dto";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { prisma } from "../config/prisma";
 import { z, ZodError } from "zod";
+import { verifyCategoryOwnership } from "../services/category.service";
 
 export const createCategory = async (req: AuthRequest, res: Response) => {
     try {
@@ -71,9 +72,7 @@ export const updateCategory = async (req: AuthRequest, res: Response) => {
         const data = updateCategorySchema.parse(req.body);
 
         // 1 - Verificar se a categoria existe e pertence ao usuário
-        const existingCategory = await prisma.category.findFirst({
-            where: { id:categoryId, userId:userId },
-        });
+        const existingCategory = await verifyCategoryOwnership(categoryId, userId);
 
         if (!existingCategory) {
             return res.status(404).json({ error: "Categoria não encontrada" });
@@ -115,6 +114,30 @@ export const updateCategory = async (req: AuthRequest, res: Response) => {
                 error: "Dados Inválidos" , 
                 details: z.flattenError(error).fieldErrors});
         }
+        return res.status(500).json({ error: "Erro interno do servidor" });
+    }
+};
+
+export const deleteCategory = async (req: AuthRequest, res: Response) => {
+    try {
+        const categoryId = req.params.id as string;
+        const userId = req.userId!;
+
+        // 1 - Verificar se a categoria existe e pertence ao usuário
+        const existingCategory = await verifyCategoryOwnership(categoryId, userId);
+
+        if (!existingCategory) {
+            return res.status(404).json({ error: "Categoria não encontrada" });
+        }
+
+        // 2 - Deletar a categoria
+        await prisma.category.delete({
+            where: { id: categoryId },
+        });
+
+        // 204 No COntent: deu tudo certo e não há nada para retornar
+        return res.status(204).send();
+    }catch{
         return res.status(500).json({ error: "Erro interno do servidor" });
     }
 };

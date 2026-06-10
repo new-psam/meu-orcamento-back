@@ -84,3 +84,69 @@ paths:
           description: Token de autenticação não fornecido ou inválido
         500:
           description: Erro interno do servidor
+
+  /categories/{id}:
+    put:
+      summary: Atualiza uma categoria existente
+      tags: [Categories]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: O ID da categoria a ser atualizada
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: O novo nome da categoria (não pode ser duplicado para o mesmo usuário)
+                  example: "Alimentação"
+                color:
+                  type: string
+                  description: A nova cor de exibição da categoria no frontend
+                  example: "azul"
+                parentId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: O novo ID da categoria pai, se for uma subcategoria (pode ser null para tornar principal)
+                  example: "123e4567-e89b-12d3-a456-426614174000"
+      responses:
+        200:
+          description: Categoria atualizada com sucesso
+        400:
+          description: Dados inválidos ou você já possui uma categoria com esse nome
+        401:
+          description: Token de autenticação não fornecido ou inválido
+        404:
+          description: Categoria não encontrada ou não pertence ao usuário
+
+    delete:
+      summary: Remove uma categoria
+      tags: [Categories]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: O ID da categoria a ser removida
+      responses:
+        204:
+          description: Categoria removida com sucesso
+        401:
+          description: Token de autenticação não fornecido ou inválido
+        404:
+          description: Categoria não encontrada ou não pertence ao usuário

@@ -18,6 +18,7 @@ jest.mock('../config/prisma', () => ({
                 findMany: jest.fn(),
                 put: jest.fn(),
                 update: jest.fn(),
+                delete: jest.fn(),
             },
         },
 }));
@@ -241,5 +242,56 @@ describe("Category API - PUT / categories/:id", () => {
         expect(response.body).toHaveProperty('name', "Lazer");
         expect(response.body).toHaveProperty('color', "verde");
         expect(prisma.category.update).toHaveBeenCalledTimes(1);
+     });
+});
+
+describe("Category API - DELETE / categories/:id", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    // Teste 1: Porta Trancada
+    it("Deve retornar erro 401 se o token de autenticação não for fornecido", async () => {
+        const response = await request(app)
+            .delete('/categories/623e4567-e89b-12d3-a456-426614174001');
+
+        expect(response.status).toBe(401);
+     });
+
+     // Teste 2: Categoria fantasma (não existe ou é de outro usuário)
+     it("Deve retornar erro 404 se a categoria não existir ou pertencer a outro usuário", async () => {
+        (prisma.category.findFirst as jest.Mock).mockResolvedValue(null); // simula categoria não encontrada
+
+        const response = await request(app)
+            .delete('/categories/623e4567-e89b-12d3-a456-426614174001')
+            .set('Authorization', `Bearer ${mockToken}`);
+
+        expect(response.status).toBe(404);
+        expect(response.body).toHaveProperty('error', "Categoria não encontrada");
+     });
+
+     // Teste 3: Exclusão bem-sucedida - caminho Feliz
+     it("Deve excluir a categoria com sucesso e retornar status 204", async () => {
+        // 1 - Simulamos a categoria atual sendo encontrada
+        (prisma.category.findFirst as jest.Mock)
+            .mockResolvedValue({
+                id: "623e4567-e89b-12d3-a456-426614174001",
+                name: "Alimentação",
+                color: "azul",
+                userId: "123e4567-e89b-12d3-a456-426614174000",
+            });
+
+        // 2 - Simulamos a exclusão bem-sucedida
+        (prisma.category.delete as jest.Mock).mockResolvedValue({
+            id: "623e4567-e89b-12d3-a456-426614174001",
+            name: "Alimentação",
+        });
+
+        const response = await request(app)
+            .delete('/categories/623e4567-e89b-12d3-a456-426614174001')
+            .set('Authorization', `Bearer ${mockToken}`);
+
+        expect(response.status).toBe(204);
+        expect(prisma.category.delete).toHaveBeenCalledTimes(1);
      });
 });
