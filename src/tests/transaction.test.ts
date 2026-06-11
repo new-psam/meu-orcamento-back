@@ -235,3 +235,35 @@ describe("DELETE /transactions/:id", () => {
         expect(prisma.transaction.delete).toHaveBeenCalledTimes(1);
     });
 });
+
+describe("Transaction API - GET / transactions/summary", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    // Teste 1: Porta Trancada
+    it("Deve retornar erro 401 se o token não for fornecido", async () => {
+        const response = await request(app).get("/transactions/summary");
+        expect(response.status).toBe(401);
+    });
+
+    // Teste 2: O Caminho Feliz (Matemática correta)
+    it("Deve retornar o resumo financeiro com status 200", async () => {
+        // Simulamos o banco de dados entregando 3 transações (1 receita e 2 despesas)
+        (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+            { amount: 5000, type: "INCOME" },
+            { amount: 1500, type: "EXPENSE" },
+            { amount: 200, type: "EXPENSE" }
+        ]);
+
+        const response = await request(app)
+            .get("/transactions/summary")
+            .set("Authorization", `Bearer ${mockToken}`);
+
+        // O nosso backend vai ter que fazer essa conta fechar
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("incomes", 5000);
+        expect(response.body).toHaveProperty("expenses", 1700);
+        expect(response.body).toHaveProperty("balance", 3300);
+    });
+});

@@ -87,6 +87,37 @@ paths:
         400:
           description: Parâmetros inválidos
 
+  /transactions/summary:
+    get:
+      summary: Retorna o resumo financeiro (receitas, despesas e saldo)
+      tags: [Transactions]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Resumo calculado com sucesso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  incomes:
+                    type: number
+                    description: Total de receitas
+                    example: 5000
+                  expenses:
+                    type: number
+                    description: Total de despesasß
+                    example: 1700
+                  balance:
+                    type: number
+                    description: Saldo final (receitas - despesas)
+                    example: 3300
+        401:
+          description: Token de autenticação não fornecido ou inválido
+        500:
+          description: Erro interno do servidor
+
   /transactions/{id}:
     get:
       summary: Busca uma transação específica pelo ID

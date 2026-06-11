@@ -5,6 +5,8 @@ import { z, ZodError } from "zod";
 import { getTransactionSchema } from "../dtos/get-transactions.dto";
 import { Prisma } from "@prisma/client";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { verifyCategoryOwnership } from "../services/category.service";
+import { calculateTransactionSummary } from "../services/transaction.service";
 
 export const createTransaction = async (req: AuthRequest, res: Response) => {
     try {
@@ -12,6 +14,14 @@ export const createTransaction = async (req: AuthRequest, res: Response) => {
         const data = createTransactionSchema.parse(req.body);
 
         const userId = req.userId!; // Pegamos o userID que o nosso middleware de autenticação injetou na requisição
+
+        if (data.categoryId){
+            const isCategoryValid = await verifyCategoryOwnership(data.categoryId, userId)
+            if (!isCategoryValid) {
+                return res.status(404).json({error: "Categoria inválida ou não pertence a este usuário" })
+            }
+        }
+
 
         // 2. Banco de dados: Manda o Prisma criar a linha na tabela
         const transaction = await prisma.transaction.create({
@@ -63,23 +73,22 @@ export const getTransactions = async (req: AuthRequest, res: Response) => {
         const take = query.limit;
 
         
-        // 3. Montamos a base do filtro (Wher) apenas com o userID, para garantir que o usuário só veja as próprias transações
-        const where: any = {
-            userId: userIdToken, 
-        };
+        // 3. Criamos o filtro de data como um objeto isolado (e vazio caso não tenha mês e ano)
+        const dataFilter = (query.month && query.year)
+            ? {
+                    date: {
+                        gte: new Date(Date.UTC(query.year, query.month -1, 1, 0, 0, 0, 0)),
+                        lte: new Date(Date.UTC(query.year, query.month, 0, 23, 59, 59, 999))
+                    }
+                }
+            : {};
 
-        // 4. Só calculamos e adicionamos a regra de datas SE o mês e o ano vieram na query (são opcionais)
-        if (query.month && query.year) {
-            const startDate = new Date(Date.UTC(query.year, query.month -1, 1, 0, 0, 0, 0));
-            const endDate = new Date(Date.UTC(query.year, query.month, 0, 23, 59, 59, 999));
-
-            // Injeta o filtro de data dentro do objeto where
-            where.date = {
-                gte: startDate,
-                lte: endDate,
-            };
-
+        // 4. Montamos o "where" final usando tipagem estrita e imutabilidade
+        const where: Prisma.TransactionWhereInput = {
+            userId: userIdToken,
+            ...dataFilter // O "Spread" espalha o filtro de data aqui dentro (se ele existir)
         }
+
 
         //5. Passamos a variável "where" pronta para o prisma e adicionamos o orderBy
         const transactions = await prisma.transaction.findMany({
@@ -158,6 +167,15 @@ export const updateTransaction = async (req: AuthRequest, res: Response) => {
         // Isso diz ao Zod: "Aplique as mesmas regras, mas aceite se o usuário mandar só 1 ou 2 campos"
         const data = createTransactionSchema.partial().parse(req.body);
 
+        // Verifica se a categoria enviada para atualização é válida
+        if (data.categoryId) {
+            const isCategoryValid = await verifyCategoryOwnership(data.categoryId, req.userId!);
+            
+            if (!isCategoryValid) {
+                return res.status(404).json({ error: "Categoria inválida ou não pertence a este usuário" });
+            }
+        }
+
         const transaction =  await prisma.transaction.update({
             where: { id , userId: req.userId! },
             data,
@@ -211,5 +229,17 @@ export const deleteTransaction = async (req: AuthRequest, res: Response) => {
         // (Podemos refinar esse erro de banco depois, mas para o TDD passar agora, é suficiente)
         return res.status(500).json({ error: "Erro interno do servidor"});
 
+    }
+};
+
+export const getTransactionSummary = async (req: AuthRequest, res: Response) => {
+    try{
+        const userId = req.userId!;
+
+        const summary = await calculateTransactionSummary(userId);
+
+        return res.status(200).json(summary);
+    } catch (error) {
+        return res.status(500).json({ error: "Erro interno do servidor"});
     }
 };

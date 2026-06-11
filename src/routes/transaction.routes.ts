@@ -4,7 +4,8 @@ import {
     getTransactionById, 
     getTransactions,
     updateTransaction,
-    deleteTransaction
+    deleteTransaction,
+    getTransactionSummary
 } from '../controllers/transaction.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -17,6 +18,7 @@ transactionRoutes.use(authMiddleware);
 // Define que qualquer requisição POST para '/transaction'será tratada pelo nosso controller
 transactionRoutes.post("/", createTransaction);
 transactionRoutes.get("/", getTransactions);
+transactionRoutes.get("/summary", getTransactionSummary);
 transactionRoutes.get("/:id", getTransactionById);
 transactionRoutes.put("/:id", updateTransaction);
 transactionRoutes.delete("/:id", deleteTransaction);
