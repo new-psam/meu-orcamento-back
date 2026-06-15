@@ -83,10 +83,16 @@ export const getTransactions = async (req: AuthRequest, res: Response) => {
                 }
             : {};
 
+        // 4. Criamos o filtro de categoria, também como um objeto isolado (e vazio caso não tenha categoryId)
+        const categoryFilter = query.categoryId
+            ? { categoryId: query.categoryId }
+            : {};
+
         // 4. Montamos o "where" final usando tipagem estrita e imutabilidade
         const where: Prisma.TransactionWhereInput = {
             userId: userIdToken,
-            ...dataFilter // O "Spread" espalha o filtro de data aqui dentro (se ele existir)
+            ...dataFilter, // O "Spread" espalha o filtro de data aqui dentro (se ele existir)
+            ...categoryFilter, // O "Spread" espalha o filtro de categoria aqui dentro (se ele existir)
         }
 
 

@@ -81,6 +81,12 @@ paths:
           schema:
             type: integer
           description: "Ano (ex: 2026)"
+        - in: query
+          name: categoryId
+          schema:
+            type: string
+            format: uuid
+          description: "ID da categoria para filtrar as transações por categoria(opcional)"
       responses:
         200:
           description: Lista de transações retornada com sucesso

@@ -8,4 +8,6 @@ export const getTransactionSchema = z.object({
     // Paginação com valores padrão caso o usuário não envie na URL
     page: z.coerce.number().min(1).optional().default(1),
     limit: z.coerce.number().min(1).max(100).optional().default(10),
+
+    categoryId: z.uuid({message: "Formato de ID inválido"}).optional(),
 });

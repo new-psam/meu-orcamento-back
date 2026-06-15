@@ -144,6 +144,29 @@ describe("GET /transactions", () => {
         });
     });
 
+
+    it("Deve filtrar as transações por categoryId com status 200", async () => {
+        // 1. Prisma simula devolvendo uma transação desssa categoria
+        (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+            { id: "123e4567-e89b-12d3-a456-426614174000", amount: 200, categoryId: "123e4567-e89b-12d3-a456-426614174000" }
+        ]);
+
+        // 2. Fazemos a requisição passando o filtro na URL
+        const response = await request(app)
+            .get("/transactions?categoryId=123e4567-e89b-12d3-a456-426614174000")
+            .set("Authorization", `Bearer ${mockToken}`);
+        expect(response.status).toBe(200);
+
+        // 3. A prova real: O prisma tem que receber a consulta com o filtro de categoryId correto
+        expect(prisma.transaction.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({
+                    categoryId: "123e4567-e89b-12d3-a456-426614174000"
+                })
+            })
+        );
+    });
+
 });
 
 describe("GET /transactions/:id", () => {
@@ -266,4 +289,5 @@ describe("Transaction API - GET / transactions/summary", () => {
         expect(response.body).toHaveProperty("expenses", 1700);
         expect(response.body).toHaveProperty("balance", 3300);
     });
+
 });
