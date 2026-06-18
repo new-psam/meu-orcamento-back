@@ -11,14 +11,17 @@ COPY prisma ./prisma/
 # 4. Instala as dependências e gera o Prisma Cliente
 RUN npm install
 
-# 5. Copia todo o resto do código da sua máquina para o container
+# 5. GERA O CLIENTE DO PRISMA NA MÁQUINA LINUX 
+RUN npx prisma generate
+
+# 6. Copia todo o resto do código da sua máquina para o container
 COPY . .
 
-# 6. Converte o código TypeScript para JavaScript (Gera a pasta /dist)
+# 7. Converte o código TypeScript para JavaScript (Gera a pasta /dist)
 RUN npm run build
 
-# 7. Expõe a porta que a API vai conversar com o mundo externo
+# 8. Expõe a porta que a API vai conversar com o mundo externo
 EXPOSE 3000
 
-# 8. O comando final que liga a API emprodução
+# 9. O comando final que liga a API emprodução
 CMD ["npm", "start"]
