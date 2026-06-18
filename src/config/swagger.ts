@@ -10,7 +10,7 @@ const options = {
         },
         servers: [
             {
-                url: "https://meuorcamentoapi-m9t47ll9.b4a.run",
+                url: "https://meuoramentoapi-m9t47ll9.b4a.run",
                 description: "Servidor de Produção (Nuvem)",
             },
             {
