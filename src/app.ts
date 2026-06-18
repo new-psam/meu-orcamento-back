@@ -5,8 +5,11 @@ import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./config/swagger";
 import { authRoutes } from "./routes/auth.routes";
 import { categoryRoutes } from "./routes/category.routes";
+import cors from "cors";
 
 const app = express();
+
+app.use(cors());
 
 app.use(express.json());
 
