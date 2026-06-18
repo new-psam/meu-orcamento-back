@@ -10,6 +10,10 @@ const options = {
         },
         servers: [
             {
+                url: "https://meuorcamentoapi-m9t47ll9.b4a.run",
+                description: "Servidor de Produção (Nuvem)",
+            },
+            {
                 url: "http://localhost:3000",
                 description: "Servidor Local",
             },
