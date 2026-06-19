@@ -10,8 +10,8 @@ const options = {
         },
         servers: [
             {
-                url: "https://meuoramentoapi-m9t47ll9.b4a.run",
-                description: "Servidor de Produção (Nuvem)",
+                url: "/",
+                description: "Servidor de Produção (Nuvem - Detecta automaticamente)",
             },
             {
                 url: "http://localhost:3000",
