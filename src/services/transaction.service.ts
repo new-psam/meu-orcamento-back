@@ -1,9 +1,17 @@
 import { prisma } from "../config/prisma";
 
-export const calculateTransactionSummary = async (userId: string) => {
+export const calculateTransactionSummary = async (userId: string, month: number, year: number) => {
+    // Definimos o início e fim do mês para o Prisma filtrar
+    const startDate = new Date(year, month -1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59);
     // 1. O Serviço fas a busca no banco
     const transactions = await prisma.transaction.findMany({
-        where: { userId },
+        where: { 
+            userId,
+            date: {
+                gte: startDate,
+                lte: endDate
+            } },
         select: { amount: true, type: true}
     });
 
