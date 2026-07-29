@@ -13,7 +13,7 @@ export const calculateTransactionSummary = async (
                 gte: startDate,
                 lte: endDate
             },
-            ...(status ? {status} : {})
+            ...(status ? {status: status as "PAID" | "PENDING"} : {})
         },
         select: { amount: true, type: true}
     });
