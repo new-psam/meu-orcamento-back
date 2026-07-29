@@ -10,4 +10,6 @@ export const getTransactionSchema = z.object({
     limit: z.coerce.number().min(1).max(100).optional().default(10),
 
     categoryId: z.uuid({message: "Formato de ID inválido"}).optional(),
+
+    status: z.enum(["PAID", "PENDING"]).optional(),
 });

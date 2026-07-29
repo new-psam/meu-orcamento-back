@@ -88,15 +88,21 @@ export const getTransactions = async (req: AuthRequest, res: Response) => {
             ? { categoryId: query.categoryId }
             : {};
 
-        // 4. Montamos o "where" final usando tipagem estrita e imutabilidade
+        // filtro de status, também como um objeto isolado (e vazio caso não tenha status)
+        const statusFilter = query.status
+            ? { status: query.status }
+            : {};
+
+        // 5. Montamos o "where" final usando tipagem estrita e imutabilidade
         const where: Prisma.TransactionWhereInput = {
             userId: userIdToken,
             ...dataFilter, // O "Spread" espalha o filtro de data aqui dentro (se ele existir)
             ...categoryFilter, // O "Spread" espalha o filtro de categoria aqui dentro (se ele existir)
+            ...statusFilter, // O "Spread" espalha o filtro de status aqui dentro (se ele existir)
         }
 
 
-        //5. Passamos a variável "where" pronta para o prisma e adicionamos o orderBy
+        //6. Passamos a variável "where" pronta para o prisma e adicionamos o orderBy
         const transactions = await prisma.transaction.findMany({
                 where,
                 take,
