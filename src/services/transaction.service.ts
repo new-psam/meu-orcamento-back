@@ -1,6 +1,7 @@
 import { prisma } from "../config/prisma";
 
-export const calculateTransactionSummary = async (userId: string, month: number, year: number) => {
+export const calculateTransactionSummary = async (
+    userId: string, month: number, year: number, status?: string) => {
     // Definimos o início e fim do mês para o Prisma filtrar
     const startDate = new Date(year, month -1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
@@ -11,7 +12,9 @@ export const calculateTransactionSummary = async (userId: string, month: number,
             date: {
                 gte: startDate,
                 lte: endDate
-            } },
+            },
+            ...(status ? {status} : {})
+        },
         select: { amount: true, type: true}
     });
 

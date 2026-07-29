@@ -248,13 +248,18 @@ export const getTransactionSummary = async (req: AuthRequest, res: Response) => 
     try{
         const userId = req.userId!;
 
-        const { month, year } = req.query;
+        const { month, year, status } = req.query;
 
         // 2. Convertemos para número (garantindo valores padrão se não vierem)
         const monthNumber = Number(month) || new Date().getMonth() + 1;
         const yearNumber = Number(year) || new Date().getFullYear();
 
-        const summary = await calculateTransactionSummary(userId, monthNumber, yearNumber);
+        const summary = await calculateTransactionSummary(
+            userId, 
+            monthNumber, 
+            yearNumber, 
+            status as string | undefined)
+            ;
 
         return res.status(200).json(summary);
     } catch (error) {
