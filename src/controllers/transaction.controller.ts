@@ -1,10 +1,10 @@
-import { Request, Response } from "express";
+import type { Response } from "express";
 import { prisma } from "../config/prisma";
 import { createTransactionSchema } from "../dtos/create-transaction.dto"
 import { z, ZodError } from "zod";
 import { getTransactionSchema } from "../dtos/get-transactions.dto";
 import { Prisma } from "@prisma/client";
-import { AuthRequest } from "../middlewares/auth.middleware";
+import type { AuthRequest } from "../middlewares/auth.middleware";
 import { verifyCategoryOwnership } from "../services/category.service";
 import { calculateTransactionSummary } from "../services/transaction.service";
 
@@ -260,7 +260,7 @@ export const getTransactionSummary = async (req: AuthRequest, res: Response) => 
             ;
 
         return res.status(200).json(summary);
-    } catch (error) {
+    } catch (_error) {
         return res.status(500).json({ error: "Erro interno do servidor"});
     }
 };

@@ -1,7 +1,7 @@
-import { Response } from "express";
+import type { Response } from "express";
 import { createCategorySchema } from "../dtos/create-category.dto";
 import { updateCategorySchema } from "../dtos/update-category.dto";
-import { AuthRequest } from "../middlewares/auth.middleware";
+import type { AuthRequest } from "../middlewares/auth.middleware";
 import { prisma } from "../config/prisma";
 import { z, ZodError } from "zod";
 import { verifyCategoryOwnership } from "../services/category.service";
@@ -59,7 +59,7 @@ export const getCategories = async (req: AuthRequest, res: Response) => {
             orderBy: { name: 'asc' },
         });
         return res.status(200).json(categories);
-    } catch (error) {
+    } catch (_error) {
         
         return res.status(500).json({ error: "Erro interno do servidor" });
     }

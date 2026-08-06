@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import type { Request, Response } from "express";
 import { signinSchema, signupSchema } from "../dtos/auth.dto"
 import bcrypt from "bcrypt";
 import { prisma } from "../config/prisma"

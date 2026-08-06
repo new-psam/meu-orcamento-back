@@ -47,6 +47,16 @@ export default tseslint.config(
             // Permite async sem await (útil em controllers)
             "@typescript-eslint/require-await": "off",
         },
+    },
+
+    // --- ZONA DE TOLERÂNCIA PARA TESTES ---
+    {
+        files: ["**/*.test.ts"],
+        rules: {
+        "@typescript-eslint/no-unsafe-member-access": "off", 
+        "@typescript-eslint/no-unsafe-assignment": "off",    
+        "@typescript-eslint/unbound-method": "off"           
+        }
     }
 );
         
