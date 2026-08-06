@@ -40,18 +40,22 @@ model Category {
 }
 
 model Transaction {
-  id            String            @id @default(uuid())
-  description   String            // Ex: "escola joão", "nutri gourmet"
-  amount        Decimal           @db.Decimal(10, 2)  // Valor do lançamento
-  date          DateTime          // Data da transação
-  status        TransactionStatus @default(PENDING) //PAID ou PENDING
-  type          TransactionType
-  userId        String
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categoryId    String?
-  category      Category?         @relation(fields: [categoryId], references: [id])
-  createdAt     DateTime          @default(now())        
-  updatedAt     DateTime          @updatedAt
+  id                String            @id @default(uuid())
+  description       String            // Ex: "escola joão", "nutri gourmet"
+  amount            Decimal           @db.Decimal(10, 2)  // Valor do lançamento
+  date              DateTime          // Data da transação
+  status            TransactionStatus @default(PENDING) //PAID ou PENDING
+  type              TransactionType
+  userId            String
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId        String?
+  category          Category?         @relation(fields: [categoryId], references: [id])
+
+  isRecurring       Boolean           @default(false)
+  recurrenceGroupId String?           // Opcional, guarda o ID do grupo para vincular os meses
+
+  createdAt         DateTime              @default(now())        
+  updatedAt         DateTime              @updatedAt
 
   @@map("transactions")
 

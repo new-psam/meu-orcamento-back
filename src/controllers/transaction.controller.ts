@@ -175,8 +175,6 @@ export const updateTransaction = async (req: AuthRequest, res: Response) => {
         });
         const { id } = paramsSchema.parse(req.params);
 
-        // 2. A Mágica do Zod: reaproveitamos o schema de criação, mas usamos o .partial()
-        // Isso diz ao Zod: "Aplique as mesmas regras, mas aceite se o usuário mandar só 1 ou 2 campos"
         const data = createTransactionSchema.partial().parse(req.body);
 
         // Verifica se a categoria enviada para atualização é válida

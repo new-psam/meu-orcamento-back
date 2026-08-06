@@ -1,0 +1,48 @@
+name: API CI/CD Pipeline
+
+# 1. O Gatilho: Quando essa pipeline vai rodar?
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # 2. O cinturão de Segurança: Testes e Qualidade do Código
+  test:
+    name: Setup e Testes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixando o Código do repositório
+        uses: actions/checkout@v4
+
+      - name: Instalando o Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Instalar Dependências
+        run: npm ci
+
+      - name: Gerando o prisma Client
+        run: npx prisma generate
+
+      - name: Rodando o Linter
+        run: npm run lint
+
+      - name: Verificando os tipos do TypeScript
+        run: npm run type-check
+
+      - name: Rodando a suite de Testes
+        run: npm run test
+
+  # 3. A entrega : Deploy Automático
+  deploy:
+    name: Deploy no Render
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Avisando o Render para atualizar o site
+        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
