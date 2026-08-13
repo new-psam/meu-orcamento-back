@@ -15,12 +15,16 @@ jest.mock("../config/prisma", ()=> ({
     prisma: {
         transaction: {
             create: jest.fn(), // Transforma a função de criar em uma função "espiã" vazia
+            createMany: jest.fn(),
             findMany: jest.fn(),
             count: jest.fn(),
             findUnique: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
         },
+        category: {
+            findFirst: jest.fn(),
+        }
     },
 }));
 
@@ -77,6 +81,60 @@ describe("Transaction API", ()=> {
 
         // Garante que o Controller tentou salvar no banco exatamente 1 vez
         expect(prisma.transaction.create).toHaveBeenCalledTimes(1);
+    });
+    
+
+    it("deve projetar 12 transações futuras se a transação for recorretne mensal", async () =>  {
+        // Arrange (Preparação)
+        // 1. Ensinamos o PRisma a fingir que a categoria existe e pertence ao usuário
+        (prisma.category.findFirst as jest.Mock).mockResolvedValue({
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            name: "Assinaturas",
+            userId: "123e4567-e89b-12d3-a456-426614174000"
+        });
+        
+        // 2. Ensinamos o Prisma a fingir que o createMany funcionou e devolveu 12 transações
+        (prisma.transaction.createMany as jest.Mock).mockResolvedValue({
+            count: 12
+        });
+
+        const newRecurringTransaction ={
+            description: "Assinatura Netflix",
+            amount: 29.90,
+            date: new Date().toISOString(), // Data atual
+            type: "EXPENSE",
+            status: "PAID",
+            categoryId: "123e4567-e89b-12d3-a456-426614174000", 
+            isRecurring: true,
+            recurrencePeriod: "MONTHLY"
+        };
+
+        // Act
+        const response = await request(app)
+            .post("/transactions")
+            .set("Authorization", `Bearer ${mockToken}`)
+            .send(newRecurringTransaction);
+
+        // Assert (Verificação)
+        expect(response.status).toBe(201);
+
+        // Como projetamos 1 ano, o PRisma deve ter usado o createMany
+        expect(prisma.transaction.createMany).toHaveBeenCalledTimes(1); 
+
+        // Vamos inspecionar o que o Controller mando para o Prisma
+        const createManyPayload = (prisma.transaction.createMany as jest.Mock).mock.calls[0][0];
+        const transactionArray = createManyPayload.data;
+
+        // Garante que gerou 12 transações
+        expect(transactionArray.length).toBe(12);
+
+        // Garante que a primeira (mês atual) manteve o status enviado e a próxima ficou pendente
+        expect(transactionArray[0].status).toBe("PAID");
+        expect(transactionArray[1].status).toBe("PENDING");
+        
+        // Garante que o "COrdão Umbilical" foi criado e é o mesmo para as duas transações
+        expect(transactionArray[0].recurrenceGroupId).toBeDefined();
+        expect(transactionArray[0].recurrenceGroupId).toBe(transactionArray[1].recurrenceGroupId);
     });
 });
 

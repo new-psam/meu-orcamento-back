@@ -1,10 +1,10 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "../config/prisma";
 import { Prisma } from "@prisma/client";
 import type { z } from "zod";
 import { verifyCategoryOwnership } from "./category.service";
 import type { createTransactionSchema } from "../dtos/create-transaction.dto";
 import { getTransactionSchema } from "../dtos/get-transactions.dto";
-
 
 
 type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
@@ -19,18 +19,61 @@ export const createTransactionService = async (data: CreateTransactionInput, use
         }
     }
 
-    //2. Banco de Dados; Cria a transação
-    return await prisma.transaction.create({
-        data: {
+    //2. Caminho Simples: Se não for recorrente, criai apenas a transação normal
+    if (!data.isRecurring || !data.recurrencePeriod) {
+        return await prisma.transaction.create({
+            data: {
+                description: data.description,
+                amount: data.amount,
+                date: data.date,
+                type: data.type,
+                status: data.status,
+                userId: userId,
+                categoryId: data.categoryId,
+                isRecurring: false,
+            },
+        });
+    }
+
+    // 3. Camino recorrente: A magia da Projeção futura
+    const recurrenceGroupId = randomUUID();
+    const transactionToCreate = [];
+    const baseDate = new Date(data.date);
+
+    // Ajuste Dinâmico do período de recorrência
+    let totalOccurrences = 1;
+    if (data.recurrencePeriod === "MONTHLY") totalOccurrences = 12;
+    else if (data.recurrencePeriod === "WEEKLY") totalOccurrences = 4;
+    else if (data.recurrencePeriod === "DAILY") totalOccurrences = 30;
+    else if (data.recurrencePeriod === "YEARLY") totalOccurrences = 5;
+
+    for (let i = 0; i < totalOccurrences; i++) {
+        const nextDate = new Date(baseDate);
+        if (data.recurrencePeriod === "MONTHLY") nextDate.setMonth(baseDate.getMonth() + i);
+        else if (data.recurrencePeriod === "WEEKLY") nextDate.setDate(baseDate.getDate() + i * 7);
+        else if (data.recurrencePeriod === "DAILY") nextDate.setDate(baseDate.getDate() + i);
+        else if (data.recurrencePeriod === "YEARLY") nextDate.setFullYear(baseDate.getFullYear() + i);
+        transactionToCreate.push({
             description: data.description,
             amount: data.amount,
-            date: data.date,
+            date: nextDate,
             type: data.type,
-            status: data.status,
+            status: i === 0 ? data.status : "PENDING", // Apenas a primeira transação pode ter o status definido pelo usuário
             userId: userId,
-            categoryId: data.categoryId
-        },
+            categoryId: data.categoryId,
+            isRecurring: true,
+            recurrencePeriod: data.recurrencePeriod,
+            recurrenceGroupId: recurrenceGroupId
+        });
+    }
+
+    // 4. Inserção em massa
+    await prisma.transaction.createMany({
+        data: transactionToCreate,
     });
+
+    // 5. Retorna a primeira transação criada
+    return transactionToCreate[0];
 };
 
 export const getTransactionService = async (query: GetTransactionQuery, userId: string) => {
