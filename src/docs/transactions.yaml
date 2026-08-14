@@ -16,7 +16,7 @@ paths:
                 - amount
                 - date
                 - type
-                - status
+                #- status
               properties:
                 description:
                   type: string
@@ -40,6 +40,15 @@ paths:
                   type: string
                   format: uuid
                   description: ID da categoria vinculada à transação (opcional)
+                isRecurring:
+                  type: boolean
+                  description: Define se a transição se repetirá no futuro
+                  example: true
+                recurrencePeriod:
+                  type: string
+                  enum: [DAILY, WEEKLY, MONTHLY, YEARLY]
+                  description: O intervalo de repetição caso seja recorrente
+                  example: "MONTHLY"
       responses:
         201:
           description: Transação criada com sucesso
@@ -52,13 +61,6 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        #   - in: query
-        #     name: userId
-        #     required: true
-        #     schema:
-        #       type: string
-        #       format: uuid
-        # description: ID do usuário (mesmo UUID usado no POST)
         - in: query
           name: page
           schema:
@@ -113,7 +115,7 @@ paths:
                     example: 5000
                   expenses:
                     type: number
-                    description: Total de despesasß
+                    description: Total de despesas
                     example: 1700
                   balance:
                     type: number
@@ -159,6 +161,11 @@ paths:
             type: string
             format: uuid
           description: ID da transação
+        - in: query
+          name: updateAll
+          schema:
+            type: boolean
+          description: Se true, atualiza esta transação e todas as futuras do mesmo grupo
       requestBody:
         required: true
         content:
@@ -166,10 +173,30 @@ paths:
             schema:
               type: object
               properties:
+                description:
+                  type: string
+                  example: "Mensalidade Escola"
+                amount:
+                  type: number
+                  example: 1600.50
+                date:
+                  type: string
+                  format: date-time
+                type:
+                  type: string
+                  enum: [INCOME, EXPENSE]
                 status:
                   type: string
                   enum: [PENDING, PAID]
-                  example: "PAID"
+                categoryId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                isRecurring:
+                  type: boolean
+                recurrencePeriod:
+                  type: string
+                  enum: [DAILY, WEEKLY, MONTHLY, YEARLY]
       responses:
         200:
           description: Transação atualizada com sucesso
@@ -191,6 +218,11 @@ paths:
             type: string
             format: uuid
           description: ID da transação
+        - in: query
+          name: deleteAll
+          schema:
+            type: boolean
+          description: Se true, delete esta transação e todas as futuras do mesmo grupo
       responses:
         200:
           description: Transação deletada com sucesso

@@ -2,9 +2,15 @@ import type { Response } from "express";
 import { createCategorySchema } from "../dtos/create-category.dto";
 import { updateCategorySchema } from "../dtos/update-category.dto";
 import type { AuthRequest } from "../middlewares/auth.middleware";
-import { prisma } from "../config/prisma";
+
 import { z, ZodError } from "zod";
-import { verifyCategoryOwnership } from "../services/category.service";
+import { 
+    createCategoryService,
+    getCategoriesService,
+    updateCategoryService,
+    deleteCategoryService
+ } from "../services/category.service";
+
 
 export const createCategory = async (req: AuthRequest, res: Response) => {
     try {
@@ -12,40 +18,18 @@ export const createCategory = async (req: AuthRequest, res: Response) => {
         const data = createCategorySchema.parse(req.body);
         const userId = req.userId!;
 
-        // 2. Normalioza os dados (exemplo: trim, lowercase)
-        const normalizedName = data.name.trim().toLowerCase();
+        const category = await createCategoryService(data, userId);
 
-        // 3. Regra de negócio: Verificar se a categoria já existe para o usuário
-        const existingCategory = await prisma.category.findFirst({
-            where: {
-                name: normalizedName,
-                userId: userId,
-            },
-        });
-
-        if (existingCategory) {
-            // O texto aqui deve bater exatamente com o que o seu teste espear
-            return res.status(400).json({ error: "Você já possui uma categoria com esse nome" });
-        }
-
-        // 4. Criação do Banco
-        const category = await prisma.category.create({
-            data: {
-                name: normalizedName,
-                color: data.color,
-                parentId: data.parentId,
-                userId: userId,
-            },
-        });
-        
-        // 5. Retorna a resposta
         return res.status(201).json(category);
-
+        
     } catch (error) {
         if (error instanceof ZodError) {
             return res.status(400).json({ 
                 error: "Dados Inválidos" , 
                 details: z.flattenError(error).fieldErrors});
+        }
+        if (error instanceof Error && error.message === "CATEGORY_NAME_CONFLICT") {
+            return res.status(400).json({ error: "Você já possui uma categoria com esse nome" });
         }
         return res.status(500).json({ error: "Erro interno do servidor" });
     }
@@ -53,11 +37,7 @@ export const createCategory = async (req: AuthRequest, res: Response) => {
 
 export const getCategories = async (req: AuthRequest, res: Response) => {
     try {
-        const userId = req.userId!;
-        const categories = await prisma.category.findMany({
-            where: { userId },
-            orderBy: { name: 'asc' },
-        });
+        const categories = await getCategoriesService(req.userId!);
         return res.status(200).json(categories);
     } catch (_error) {
         
@@ -68,43 +48,9 @@ export const getCategories = async (req: AuthRequest, res: Response) => {
 export const updateCategory = async (req: AuthRequest, res: Response) => {
     try {
         const categoryId = req.params.id as string;
-        const userId = req.userId!;
         const data = updateCategorySchema.parse(req.body);
 
-        // 1 - Verificar se a categoria existe e pertence ao usuário
-        const existingCategory = await verifyCategoryOwnership(categoryId, userId);
-
-        if (!existingCategory) {
-            return res.status(404).json({ error: "Categoria não encontrada" });
-        }
-
-        // 2 - Verificar se o novo nome já existe para o usuário (se estiver sendo atualizado)
-        let normalizedName = existingCategory.name;
-        if (data.name) {
-            normalizedName = data.name.trim().toLowerCase();
-
-            if (normalizedName !== existingCategory.name) {
-                const nameConflict = await prisma.category.findFirst({
-                    where: {
-                        name: normalizedName,
-                        userId: userId,
-                    },
-                });
-
-                if (nameConflict) {
-                    return res.status(400).json({ error: "Você já possui uma categoria com esse nome" });
-                }
-            }
-        }
-
-        // 3 - Atualizar a categoria
-        const updatedCategory = await prisma.category.update({
-            where: { id: categoryId },
-            data: {
-                name: normalizedName,
-                color: data.color !== undefined ? data.color : existingCategory.color,
-            },
-        });
+        const updatedCategory = await updateCategoryService(categoryId, data, req.userId!);
             
         return res.status(200).json(updatedCategory);
 
@@ -114,6 +60,12 @@ export const updateCategory = async (req: AuthRequest, res: Response) => {
                 error: "Dados Inválidos" , 
                 details: z.flattenError(error).fieldErrors});
         }
+        if (error instanceof Error && error.message === "CATEGORY_NOT_FOUND") {
+            return res.status(404).json({ error: "Categoria não encontrada" });
+        }
+        if (error instanceof Error && error.message === "CATEGORY_NAME_CONFLICT") {
+            return res.status(400).json({ error: "Você já possui uma categoria com esse nome" });
+        }
         return res.status(500).json({ error: "Erro interno do servidor" });
     }
 };
@@ -121,23 +73,14 @@ export const updateCategory = async (req: AuthRequest, res: Response) => {
 export const deleteCategory = async (req: AuthRequest, res: Response) => {
     try {
         const categoryId = req.params.id as string;
-        const userId = req.userId!;
+        
+        await deleteCategoryService(categoryId, req.userId!);
 
-        // 1 - Verificar se a categoria existe e pertence ao usuário
-        const existingCategory = await verifyCategoryOwnership(categoryId, userId);
-
-        if (!existingCategory) {
+        return res.status(204).send();
+    }catch (error) {
+        if (error instanceof Error && error.message === "CATEGORY_NOT_FOUND") {
             return res.status(404).json({ error: "Categoria não encontrada" });
         }
-
-        // 2 - Deletar a categoria
-        await prisma.category.delete({
-            where: { id: categoryId },
-        });
-
-        // 204 No COntent: deu tudo certo e não há nada para retornar
-        return res.status(204).send();
-    }catch{
         return res.status(500).json({ error: "Erro interno do servidor" });
     }
 };

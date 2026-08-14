@@ -15,12 +15,18 @@ jest.mock("../config/prisma", ()=> ({
     prisma: {
         transaction: {
             create: jest.fn(), // Transforma a função de criar em uma função "espiã" vazia
+            createMany: jest.fn(),
             findMany: jest.fn(),
             count: jest.fn(),
             findUnique: jest.fn(),
             update: jest.fn(),
+            updateMany: jest.fn(),
             delete: jest.fn(),
+            deleteMany: jest.fn(),
         },
+        category: {
+            findFirst: jest.fn(),
+        }
     },
 }));
 
@@ -77,6 +83,60 @@ describe("Transaction API", ()=> {
 
         // Garante que o Controller tentou salvar no banco exatamente 1 vez
         expect(prisma.transaction.create).toHaveBeenCalledTimes(1);
+    });
+    
+
+    it("deve projetar 12 transações futuras se a transação for recorretne mensal", async () =>  {
+        // Arrange (Preparação)
+        // 1. Ensinamos o PRisma a fingir que a categoria existe e pertence ao usuário
+        (prisma.category.findFirst as jest.Mock).mockResolvedValue({
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            name: "Assinaturas",
+            userId: "123e4567-e89b-12d3-a456-426614174000"
+        });
+        
+        // 2. Ensinamos o Prisma a fingir que o createMany funcionou e devolveu 12 transações
+        (prisma.transaction.createMany as jest.Mock).mockResolvedValue({
+            count: 12
+        });
+
+        const newRecurringTransaction ={
+            description: "Assinatura Netflix",
+            amount: 29.90,
+            date: new Date().toISOString(), // Data atual
+            type: "EXPENSE",
+            status: "PAID",
+            categoryId: "123e4567-e89b-12d3-a456-426614174000", 
+            isRecurring: true,
+            recurrencePeriod: "MONTHLY"
+        };
+
+        // Act
+        const response = await request(app)
+            .post("/transactions")
+            .set("Authorization", `Bearer ${mockToken}`)
+            .send(newRecurringTransaction);
+
+        // Assert (Verificação)
+        expect(response.status).toBe(201);
+
+        // Como projetamos 1 ano, o PRisma deve ter usado o createMany
+        expect(prisma.transaction.createMany).toHaveBeenCalledTimes(1); 
+
+        // Vamos inspecionar o que o Controller mando para o Prisma
+        const createManyPayload = (prisma.transaction.createMany as jest.Mock).mock.calls[0][0];
+        const transactionArray = createManyPayload.data;
+
+        // Garante que gerou 12 transações
+        expect(transactionArray.length).toBe(12);
+
+        // Garante que a primeira (mês atual) manteve o status enviado e a próxima ficou pendente
+        expect(transactionArray[0].status).toBe("PAID");
+        expect(transactionArray[1].status).toBe("PENDING");
+        
+        // Garante que o "COrdão Umbilical" foi criado e é o mesmo para as duas transações
+        expect(transactionArray[0].recurrenceGroupId).toBeDefined();
+        expect(transactionArray[0].recurrenceGroupId).toBe(transactionArray[1].recurrenceGroupId);
     });
 });
 
@@ -199,6 +259,9 @@ describe("GET /transactions/:id", () => {
 
 // --- ATUALIZAR A TRANSAÇÃO ----
 describe("PUT /transactions/:id", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    })
 
     it("Deve retornar erro 400 se enviar dados de atualização inválidos", async () => {
         // Simulamos um usuário tentando atualizar o valor para um texto em vez de um número
@@ -228,10 +291,62 @@ describe("PUT /transactions/:id", () => {
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty("status", "PENDING");
     });
+
+    it("Deve atualizar a transação atual e todas as futuras se enviar a query ?updateAll=true", async () =>{
+        // 1. Arrange: Simulamos a transação alvo (aumento do preço da Netflix)
+        const mockRecurringTransaction = {
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            description: "Assinatura Netflix",
+            amount: 29.90,
+            date: new Date("2026-08-15T10:00:00.000Z"),
+            type: "EXPENSE",
+            status: "PAID",
+            categoryId: "123e4567-e89b-12d3-a456-4266141catid",
+            isRecurring: true,
+            recurrenceGroupId: "grupo-netflix-123",
+            userId: "123e4567-e89b-12d3-a456-426614174000" // O mesmo do Token!
+        };
+
+        // Ensinamos o Prisma a encontrar essa transação primeiro
+        (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(mockRecurringTransaction);
+        // Ensinamos o Prisma a fingir que atualizaou várias transações
+        (prisma.transaction.updateMany as jest.Mock).mockResolvedValue({count: 5});
+
+        // 2. Disparamos o PUT querendo mudar o valor para 39.90
+        const response = await request(app)
+            .put("/transactions/123e4567-e89b-12d3-a456-426614174000")
+            .query({updateAll: "true"})
+            .set("Authorization", `Bearer ${mockToken}`)
+            .send({amount: 39.90});
+
+        // 3. Assert
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("message", "Transações atualizadas com sucesso");
+
+        // A prova real: O prisma DEVE ter usado o updateMany
+        expect(prisma.transaction.updateMany).toHaveBeenCalledTimes(1);
+
+        // Verificamos se ele mando atualizar com os filtros corretos e os dados novos
+        expect(prisma.transaction.updateMany).toHaveBeenCalledWith({
+            where: {
+                userId: mockRecurringTransaction.userId,
+                recurrenceGroupId: mockRecurringTransaction.recurrenceGroupId,
+                date: {
+                    gte: mockRecurringTransaction.date
+                }
+            },
+            data: {
+                amount: 39.90
+            }
+        });
+    });
 });
 
 // --- DELETAR TRANSAÇÃO (Delete /:id) ----
 describe("DELETE /transactions/:id", () => {
+    beforeEach(()=>{
+        jest.clearAllMocks();
+    })
     it("Deve retornar erro 400 se o ID fornecido não for válido", async () =>{
         // tentamos deletar enviando um texto qualquer no lugar do ID
         const response = await request(app)
@@ -256,6 +371,51 @@ describe("DELETE /transactions/:id", () => {
     
         // Garantinos que o comando de deletar do Prisma foi chamado
         expect(prisma.transaction.delete).toHaveBeenCalledTimes(1);
+    });
+
+    it ("Deve deletar a transação atual e todas as futuras se enviar a query ?deleteAll=true", async () => {
+        // 1. Arrange: Simulamos a tansação que queremos deletar (a de agosto, por exemplo)
+        const mockRecurringTransaction = {
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            description: "Assinatura Netflix",
+            amount: 29.90,
+            date: new Date("2026-08-15T10:00:00.000Z"),
+            type: "EXPENSE",
+            status: "PAID",
+            categoryId: "123e4567-e89b-12d3-a456-4266141catid",
+            isRecurring: true,
+            recurrenceGroupId: "123e4567-e89b-12d3-a456-42661410rgid",
+            userId: "123e4567-e89b-12d3-a456-426614174000"
+        };
+
+        // Ensinamos o Prisma a encontrar essa transação primeiro
+        (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(mockRecurringTransaction);
+
+        // Ensinamos o Prisma a fingir que deletou várias transações
+        (prisma.transaction.deleteMany as jest.Mock).mockResolvedValue({ count: 5 });
+
+        // 2. Act: Disparamos o DELETE passando o query na URL
+        const response = await request(app)
+        .delete(`/transactions/${mockRecurringTransaction.id}?deleteAll=true`)
+        .set("Authorization", `Bearer ${mockToken}`);
+
+        // 3. Assert: Verificamos se o status e a mensagem estão corretos
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("message", "Transações deletadas com sucesso");
+
+        // A prova real: O prisma DEVE  ter usado o deleteMany (exclusão em massa)
+        expect(prisma.transaction.deleteMany).toHaveBeenCalledTimes(1);
+
+        // Verificamos se ele mandou apagar exatamente as do mesmo grupo e que não  e que são dali para frente (>=)
+        expect(prisma.transaction.deleteMany).toHaveBeenCalledWith({
+            where: {
+                userId: mockRecurringTransaction.userId,
+                recurrenceGroupId: mockRecurringTransaction.recurrenceGroupId,
+                date:{
+                    gte: mockRecurringTransaction.date
+                }
+            }
+        });
     });
 });
 

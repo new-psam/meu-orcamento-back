@@ -12,7 +12,7 @@ export const validMockTransaction = {
 };
 
 
-// Expodtamos um alista para testar a paginação/busca mútipla
+// Exportamos uma lista para testar a paginação/busca mútipla
 export const mockTransactionsList = [
     validMockTransaction, // Reutilizamos o objeto de cima!
     {
