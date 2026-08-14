@@ -116,7 +116,7 @@ export const updateTransaction = async (req: AuthRequest, res: Response) => {
 
         return res.status(200).json(result);
     } catch (error) {
-        //console.error("🕵️ ERRO ESCONDIDO NO PUT:", error);
+        
         if (error instanceof ZodError) {
             return  res.status(400).json({
                 error: "Dados de atualização inválidos",
