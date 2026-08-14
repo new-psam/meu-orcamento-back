@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { type z } from "zod";
 import { prisma } from "../config/prisma";
 import type { createCategorySchema } from "../dtos/create-category.dto";
 import type { updateCategorySchema } from "../dtos/update-category.dto";
