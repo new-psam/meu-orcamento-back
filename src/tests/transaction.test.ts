@@ -20,6 +20,7 @@ jest.mock("../config/prisma", ()=> ({
             count: jest.fn(),
             findUnique: jest.fn(),
             update: jest.fn(),
+            updateMany: jest.fn(),
             delete: jest.fn(),
             deleteMany: jest.fn(),
         },
@@ -258,6 +259,9 @@ describe("GET /transactions/:id", () => {
 
 // --- ATUALIZAR A TRANSAÇÃO ----
 describe("PUT /transactions/:id", () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    })
 
     it("Deve retornar erro 400 se enviar dados de atualização inválidos", async () => {
         // Simulamos um usuário tentando atualizar o valor para um texto em vez de um número
@@ -286,6 +290,55 @@ describe("PUT /transactions/:id", () => {
         // 4. Verificamos se deu tudo certo (Isso vai falhar n afase vermelha)
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty("status", "PENDING");
+    });
+
+    it("Deve atualizar a transação atual e todas as futuras se enviar a query ?updateAll=true", async () =>{
+        // 1. Arrange: Simulamos a transação alvo (aumento do preço da Netflix)
+        const mockRecurringTransaction = {
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            description: "Assinatura Netflix",
+            amount: 29.90,
+            date: new Date("2026-08-15T10:00:00.000Z"),
+            type: "EXPENSE",
+            status: "PAID",
+            categoryId: "123e4567-e89b-12d3-a456-4266141catid",
+            isRecurring: true,
+            recurrenceGroupId: "grupo-netflix-123",
+            userId: "123e4567-e89b-12d3-a456-426614174000" // O mesmo do Token!
+        };
+
+        // Ensinamos o Prisma a encontrar essa transação primeiro
+        (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(mockRecurringTransaction);
+        // Ensinamos o Prisma a fingir que atualizaou várias transações
+        (prisma.transaction.updateMany as jest.Mock).mockResolvedValue({count: 5});
+
+        // 2. Disparamos o PUT querendo mudar o valor para 39.90
+        const response = await request(app)
+            .put("/transactions/123e4567-e89b-12d3-a456-426614174000")
+            .query({updateAll: "true"})
+            .set("Authorization", `Bearer ${mockToken}`)
+            .send({amount: 39.90});
+
+        // 3. Assert
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("message", "Transações atualizadas com sucesso");
+
+        // A prova real: O prisma DEVE ter usado o updateMany
+        expect(prisma.transaction.updateMany).toHaveBeenCalledTimes(1);
+
+        // Verificamos se ele mando atualizar com os filtros corretos e os dados novos
+        expect(prisma.transaction.updateMany).toHaveBeenCalledWith({
+            where: {
+                userId: mockRecurringTransaction.userId,
+                recurrenceGroupId: mockRecurringTransaction.recurrenceGroupId,
+                date: {
+                    gte: mockRecurringTransaction.date
+                }
+            },
+            data: {
+                amount: 39.90
+            }
+        });
     });
 });
 

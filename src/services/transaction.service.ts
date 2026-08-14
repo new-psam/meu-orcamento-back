@@ -1,14 +1,16 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "../config/prisma";
 import { Prisma } from "@prisma/client";
-import type { z } from "zod";
+import { type z } from "zod";
 import { verifyCategoryOwnership } from "./category.service";
 import type { createTransactionSchema } from "../dtos/create-transaction.dto";
+import type { updateTransactionSchema } from "../dtos/update-transaction.dto";
 import { getTransactionSchema } from "../dtos/get-transactions.dto";
 
 
 type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
 type GetTransactionQuery = z.infer<typeof getTransactionSchema>;
+type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
 
 export const createTransactionService = async (data: CreateTransactionInput, userId: string) =>{
     //1. Regra de Negócio: Verifica a propriedade da categoria
@@ -135,7 +137,17 @@ export const getTransactionByIdService = async (id: string, userId: string) => {
     return transaction;
 };
 
-export const updateTransactionService = async (id: string, data: Partial<CreateTransactionInput>, userId: string) => {
+export const updateTransactionService = async (id: string, data: UpdateTransactionInput, userId: string, updateAll?: boolean) => {
+    // 1. procuramos a transação alvo
+    const transaction = await prisma.transaction.findUnique({
+        where: { id, userId}
+    });
+
+    if (!transaction) {
+        throw new Error("TRANSACTION_NOT_FOUND");
+
+    }
+
     if (data.categoryId) {
         const isCategoryValid = await verifyCategoryOwnership(data.categoryId, userId);
         if (!isCategoryValid) {
@@ -143,11 +155,30 @@ export const updateTransactionService = async (id: string, data: Partial<CreateT
         }
     }
 
-    // O prisma automaticamente dispara o erro P2025 se a transação não existir ou não pertencer ao usuário
-    return await prisma.transaction.update({
+    // 2. Caminho em Massa: Se pediu updateAll E a transação pertence a um grupo
+    if (updateAll && transaction.recurrenceGroupId) {
+        await prisma.transaction.updateMany({
+            where: {
+                userId, 
+                recurrenceGroupId: transaction.recurrenceGroupId,
+                date: {
+                    gte: transaction.date
+                },
+            },
+            data: data,
+        });
+
+        return { message: "Transações atualizadas com sucesso"};
+    }
+
+
+    // 3. Caminho simples: Atualiza apenas uma
+    const updateTransaction = await prisma.transaction.update({
         where: { id, userId },
-        data,
+        data: data,
     });
+    
+    return updateTransaction;
 };
 
 export const deleteTransactionService = async (id: string, userId: string, deleteAll?: boolean) => {

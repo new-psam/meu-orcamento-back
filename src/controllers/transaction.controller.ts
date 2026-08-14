@@ -1,6 +1,6 @@
 import type { Response } from "express";
-import { prisma } from "../config/prisma";
-import { createTransactionSchema } from "../dtos/create-transaction.dto"
+import { createTransactionSchema } from "../dtos/create-transaction.dto";
+import { updateTransactionSchema } from "../dtos/update-transaction.dto";
 import { z, ZodError } from "zod";
 import { getTransactionSchema } from "../dtos/get-transactions.dto";
 import { Prisma } from "@prisma/client";
@@ -106,12 +106,17 @@ export const updateTransaction = async (req: AuthRequest, res: Response) => {
         });
         const { id } = paramsSchema.parse(req.params);
 
-        const data = createTransactionSchema.partial().parse(req.body);
+        const data = updateTransactionSchema.parse(req.body);
 
-        const transaction =  await updateTransactionService(id, data, req.userId!);
+        // Captura a flag updateAll
+        const updateAll = req.query.updateAll === "true";
 
-        return res.status(200).json(transaction);
+        // passa a flag para o service
+        const result = await updateTransactionService(id, data, req.userId!, updateAll);
+
+        return res.status(200).json(result);
     } catch (error) {
+        //console.error("🕵️ ERRO ESCONDIDO NO PUT:", error);
         if (error instanceof ZodError) {
             return  res.status(400).json({
                 error: "Dados de atualização inválidos",
@@ -122,6 +127,9 @@ export const updateTransaction = async (req: AuthRequest, res: Response) => {
             return res.status(404).json({
                 error: "Categoria inválida ou não pertence a este usuário",
             });
+        }
+        if (error instanceof Error && error.message === "TRANSACTION_NOT_FOUND") {
+            return res.status(404).json({ error: "Transação não encontrada" });
         }
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025'){
             return res.status(404).json({error: "Transação não encontrada"})
