@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "../config/prisma";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { type z } from "zod";
 import { verifyCategoryOwnership } from "./category.service";
 import type { createTransactionSchema } from "../dtos/create-transaction.dto";
 import type { updateTransactionSchema } from "../dtos/update-transaction.dto";
-import { getTransactionSchema } from "../dtos/get-transactions.dto";
+import type { getTransactionSchema } from "../dtos/get-transactions.dto";
 
 
 type CreateTransactionInput = z.infer<typeof createTransactionSchema>;
