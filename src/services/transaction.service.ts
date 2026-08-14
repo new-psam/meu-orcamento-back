@@ -150,11 +150,36 @@ export const updateTransactionService = async (id: string, data: Partial<CreateT
     });
 };
 
-export const deleteTransactionService = async (id: string, userId: string) => {
-    // O prisma automaticamente dispara o erro P2025 se a transação não existir ou não pertencer ao usuário
-    return await prisma.transaction.delete({
+export const deleteTransactionService = async (id: string, userId: string, deleteAll?: boolean) => {
+    // 1. Primeiro procuramos a transação alvo para entender a data e se ela tem um grupo de recorrência
+    const transaction = await prisma.transaction.findUnique({
         where: { id, userId },
     });
+
+    if (!transaction) {
+        throw new Error("TRANSACTION_NOT_FOUND");
+    }
+
+    // 2. Se o usuário pediu para deletar todas as futuras e a transação pertence a um grupo
+    if (deleteAll && transaction.recurrenceGroupId) {
+        await prisma.transaction.deleteMany({
+            where: {
+                userId,
+                recurrenceGroupId: transaction.recurrenceGroupId,
+                date: {
+                    gte: transaction.date, // Apenas as transações futuras (ou a própria)
+                },
+            },
+
+        });
+        return {message: "Transações deletadas com sucesso"};
+    }
+    // O prisma automaticamente dispara o erro P2025 se a transação não existir ou não pertencer ao usuário
+    await prisma.transaction.delete({
+        where: { id, userId },
+    });
+
+    return {message: "Transação deletada com sucesso"};
 };
 
 export const calculateTransactionSummary = async (

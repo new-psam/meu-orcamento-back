@@ -5,7 +5,7 @@ import { z, ZodError } from "zod";
 import { getTransactionSchema } from "../dtos/get-transactions.dto";
 import { Prisma } from "@prisma/client";
 import type { AuthRequest } from "../middlewares/auth.middleware";
-import { verifyCategoryOwnership } from "../services/category.service";
+
 import { 
     calculateTransactionSummary,
     createTransactionService,
@@ -139,13 +139,15 @@ export const deleteTransaction = async (req: AuthRequest, res: Response) => {
             id: z.uuid({message: "Formato de ID inválido"}),
         });
 
-        const { id } = paramsSchema.parse(req.params);
+        const { id } = paramsSchema.parse(req.params); 
 
-        // mandamos para o Prisma deletar a transação
-        await deleteTransactionService(id, req.userId!);
+        // Captura a flag deleteAll vinda da URL (?deleteAll=true)
+        const deleteAll= req.query.deleteAll === "true";
+
+        const result = await deleteTransactionService(id, req.userId!, deleteAll);
 
         // Devolvemos a mensagem exata que o nosso teste está esperando
-        return res.status(200).json({message: "Transação deletada com sucesso"});
+        return res.status(200).json(result);
 
     } catch (error) {
         if (error instanceof ZodError) {
@@ -154,8 +156,11 @@ export const deleteTransaction = async (req: AuthRequest, res: Response) => {
                 details: z.flattenError(error).fieldErrors,
             });
         }
+        if (error instanceof Error && error.message === "TRANSACTION_NOT_FOUND") {
+            return res.status(404).json({ error: "Transação não encontrada" });
+        }
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025'){
-            return res.status(404).json({error: "Transação não encontrada"})
+            return res.status(404).json({error: "Transação não encontrada"});
         }
         // Obs: Se o Prisma tentar atualizar um ID que não existe, ele cai aqui no 500
         // (Podemos refinar esse erro de banco depois, mas para o TDD passar agora, é suficiente)

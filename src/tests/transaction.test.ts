@@ -21,6 +21,7 @@ jest.mock("../config/prisma", ()=> ({
             findUnique: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
+            deleteMany: jest.fn(),
         },
         category: {
             findFirst: jest.fn(),
@@ -290,6 +291,9 @@ describe("PUT /transactions/:id", () => {
 
 // --- DELETAR TRANSAÇÃO (Delete /:id) ----
 describe("DELETE /transactions/:id", () => {
+    beforeEach(()=>{
+        jest.clearAllMocks();
+    })
     it("Deve retornar erro 400 se o ID fornecido não for válido", async () =>{
         // tentamos deletar enviando um texto qualquer no lugar do ID
         const response = await request(app)
@@ -314,6 +318,51 @@ describe("DELETE /transactions/:id", () => {
     
         // Garantinos que o comando de deletar do Prisma foi chamado
         expect(prisma.transaction.delete).toHaveBeenCalledTimes(1);
+    });
+
+    it ("Deve deletar a transação atual e todas as futuras se enviar a query ?deleteAll=true", async () => {
+        // 1. Arrange: Simulamos a tansação que queremos deletar (a de agosto, por exemplo)
+        const mockRecurringTransaction = {
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            description: "Assinatura Netflix",
+            amount: 29.90,
+            date: new Date("2026-08-15T10:00:00.000Z"),
+            type: "EXPENSE",
+            status: "PAID",
+            categoryId: "123e4567-e89b-12d3-a456-4266141catid",
+            isRecurring: true,
+            recurrenceGroupId: "123e4567-e89b-12d3-a456-42661410rgid",
+            userId: "123e4567-e89b-12d3-a456-426614174000"
+        };
+
+        // Ensinamos o Prisma a encontrar essa transação primeiro
+        (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(mockRecurringTransaction);
+
+        // Ensinamos o Prisma a fingir que deletou várias transações
+        (prisma.transaction.deleteMany as jest.Mock).mockResolvedValue({ count: 5 });
+
+        // 2. Act: Disparamos o DELETE passando o query na URL
+        const response = await request(app)
+        .delete(`/transactions/${mockRecurringTransaction.id}?deleteAll=true`)
+        .set("Authorization", `Bearer ${mockToken}`);
+
+        // 3. Assert: Verificamos se o status e a mensagem estão corretos
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("message", "Transações deletadas com sucesso");
+
+        // A prova real: O prisma DEVE  ter usado o deleteMany (exclusão em massa)
+        expect(prisma.transaction.deleteMany).toHaveBeenCalledTimes(1);
+
+        // Verificamos se ele mandou apagar exatamente as do mesmo grupo e que não  e que são dali para frente (>=)
+        expect(prisma.transaction.deleteMany).toHaveBeenCalledWith({
+            where: {
+                userId: mockRecurringTransaction.userId,
+                recurrenceGroupId: mockRecurringTransaction.recurrenceGroupId,
+                date:{
+                    gte: mockRecurringTransaction.date
+                }
+            }
+        });
     });
 });
 
