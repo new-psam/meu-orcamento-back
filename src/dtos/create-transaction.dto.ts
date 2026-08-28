@@ -15,6 +15,9 @@ export const createTransactionSchema = z.object({
     isRecurring: z.boolean().optional().default(false),
     recurrencePeriod: transactionPeriodEnum.optional(),
     //userId: z.string(), //O ID do usuário que criamos no Prisma Studio
+
+    // O NOVO campo para a quantidade de parcelas
+    installments: z.number().int("Deve ser um número inteiro").positive().optional(),
 });
 
 // 2. Extraímos o tipo do TypeScript automaticamente a partir di Zod

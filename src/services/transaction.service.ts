@@ -21,7 +21,7 @@ export const createTransactionService = async (data: CreateTransactionInput, use
         }
     }
 
-    //2. Caminho Simples: Se não for recorrente, criai apenas a transação normal
+    //2. Caminho Simples: Se não for recorrente, cria apenas a transação normal
     if (!data.isRecurring || !data.recurrencePeriod) {
         return await prisma.transaction.create({
             data: {
@@ -37,17 +37,22 @@ export const createTransactionService = async (data: CreateTransactionInput, use
         });
     }
 
-    // 3. Camino recorrente: A magia da Projeção futura
+    // 3. Caminho recorrente: A magia da Projeção futura
     const recurrenceGroupId = randomUUID();
     const transactionToCreate = [];
     const baseDate = new Date(data.date);
 
     // Ajuste Dinâmico do período de recorrência
-    let totalOccurrences = 1;
-    if (data.recurrencePeriod === "MONTHLY") totalOccurrences = 12;
-    else if (data.recurrencePeriod === "WEEKLY") totalOccurrences = 4;
-    else if (data.recurrencePeriod === "DAILY") totalOccurrences = 30;
-    else if (data.recurrencePeriod === "YEARLY") totalOccurrences = 5;
+    //Se 'installments' for enviado pela interface, ele assume o controle. Se não, usamos a regra padrão
+    let totalOccurrences = data.installments;
+
+    if(!totalOccurrences){
+        if (data.recurrencePeriod === "MONTHLY") totalOccurrences = 12;
+        else if (data.recurrencePeriod === "WEEKLY") totalOccurrences = 4;
+        else if (data.recurrencePeriod === "DAILY") totalOccurrences = 30;
+        else if (data.recurrencePeriod === "YEARLY") totalOccurrences = 5;
+        else totalOccurrences = 1;
+    }
 
     for (let i = 0; i < totalOccurrences; i++) {
         const nextDate = new Date(baseDate);
@@ -55,8 +60,10 @@ export const createTransactionService = async (data: CreateTransactionInput, use
         else if (data.recurrencePeriod === "WEEKLY") nextDate.setDate(baseDate.getDate() + i * 7);
         else if (data.recurrencePeriod === "DAILY") nextDate.setDate(baseDate.getDate() + i);
         else if (data.recurrencePeriod === "YEARLY") nextDate.setFullYear(baseDate.getFullYear() + i);
+
         transactionToCreate.push({
-            description: data.description,
+            // Adiciona a contagem (ex: 1/10) na descrição para facilitar o controle
+            description: `${data.description} (${i+1}/${totalOccurrences})`,
             amount: data.amount,
             date: nextDate,
             type: data.type,
