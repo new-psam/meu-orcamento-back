@@ -3,6 +3,7 @@ import { app } from "../app";
 import { prisma } from "../config/prisma";
 import { validMockTransaction, mockTransactionsList } from "./mocks/transaction.mock";
 import jwt from "jsonwebtoken";
+import { isBooleanObject } from "node:util/types";
 
 const mockToken = jwt.sign(
     { userId: "123e4567-e89b-12d3-a456-426614174000" },
@@ -23,7 +24,7 @@ jest.mock("../config/prisma", ()=> ({
             updateMany: jest.fn(),
             delete: jest.fn(),
             deleteMany: jest.fn(),
-        },
+          },
         category: {
             findFirst: jest.fn(),
         }
@@ -86,9 +87,9 @@ describe("Transaction API", ()=> {
     });
     
 
-    it("deve projetar 12 transações futuras se a transação for recorretne mensal", async () =>  {
+    it("deve projetar 12 transações futuras se a transação for recorrente mensal", async () =>  {
         // Arrange (Preparação)
-        // 1. Ensinamos o PRisma a fingir que a categoria existe e pertence ao usuário
+        // 1. Ensinamos o Prisma a fingir que a categoria existe e pertence ao usuário
         (prisma.category.findFirst as jest.Mock).mockResolvedValue({
             id: "123e4567-e89b-12d3-a456-426614174000",
             name: "Assinaturas",
@@ -134,10 +135,57 @@ describe("Transaction API", ()=> {
         expect(transactionArray[0].status).toBe("PAID");
         expect(transactionArray[1].status).toBe("PENDING");
         
-        // Garante que o "COrdão Umbilical" foi criado e é o mesmo para as duas transações
+        // Garante que o "Cordão Umbilical" foi criado e é o mesmo para as duas transações
         expect(transactionArray[0].recurrenceGroupId).toBeDefined();
         expect(transactionArray[0].recurrenceGroupId).toBe(transactionArray[1].recurrenceGroupId);
     });
+
+    it("Deve projetar a quantidade exata de parcelas se o campo 'installments'for enviado", async () =>{
+        // 1. Arrange (Preparação)
+        (prisma.category.findFirst as jest.Mock).mockResolvedValue({
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            name: "Eletrônicos",
+            userId: "123e4567-e89b-12d3-a456-426614174000"
+        });
+
+        // Fingimos que o Prisma inseriu as 5 parcelas solicitadas
+        (prisma.transaction.createMany as jest.Mock).mockResolvedValue({ count: 5});
+
+        const newInstallmentTransaction = {
+            description: "Compra Celular",
+            amount: 400.00,
+            date: new Date().toISOString(),
+            type: "EXPENSE",
+            status: "PAID",
+            categoryId: "123e4567-e89b-12d3-a456-426614174000", 
+            isRecurring: true,
+            recurrencePeriod: "MONTHLY",
+            installments: 5 // O nosso novo campo em ação!
+        };
+
+        // 2. Act
+        const response = await request(app)
+            .post("/transactions")
+            .set("Authorization", `Bearer ${mockToken}`)
+            .send(newInstallmentTransaction);
+
+        // 3. Assert (Verificação)
+        expect(response.status).toBe(201);
+        expect(prisma.transaction.createMany).toHaveBeenCalledTimes(1);
+
+        //Inspeciona os dados reais que o COntroller enviou para o Banco
+        const createManyPayLoad = (prisma.transaction.createMany as jest.Mock).mock.calls[0][0];
+        const transactionArray = createManyPayLoad.data;
+
+        // Validação visual: A descrição revcebeua numeração (1/5) corretamente?
+        expect(transactionArray[0].description).toBe("Compra Celular (1/5)");
+        expect(transactionArray[4].description).toBe("Compra Celular (5/5)");
+
+        // Garante que o status inicial da primeira é PAID e as demais são PEDING
+        expect(transactionArray[0].status).toBe("PAID");
+        expect(transactionArray[1].status).toBe("PENDING");
+        expect(transactionArray[4].status).toBe("PENDING");
+    })
 });
 
 // --- BUSCAR TRANSAÇÕES (GET) ----

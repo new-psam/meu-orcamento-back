@@ -49,6 +49,11 @@ paths:
                   enum: [DAILY, WEEKLY, MONTHLY, YEARLY]
                   description: O intervalo de repetição caso seja recorrente
                   example: "MONTHLY"
+                installments:
+                  type: integer
+                  description: Quantidade de parcelas para transações correntes
+                  example: 12
+                  minimum: 2
       responses:
         201:
           description: Transação criada com sucesso
