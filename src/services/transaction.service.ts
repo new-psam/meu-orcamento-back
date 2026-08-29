@@ -45,6 +45,8 @@ export const createTransactionService = async (data: CreateTransactionInput, use
     // Ajuste Dinâmico do período de recorrência
     //Se 'installments' for enviado pela interface, ele assume o controle. Se não, usamos a regra padrão
     let totalOccurrences = data.installments;
+    
+    const transactionInstallments = totalOccurrences ? true : false;
 
     if(!totalOccurrences){
         if (data.recurrencePeriod === "MONTHLY") totalOccurrences = 12;
@@ -61,9 +63,13 @@ export const createTransactionService = async (data: CreateTransactionInput, use
         else if (data.recurrencePeriod === "DAILY") nextDate.setDate(baseDate.getDate() + i);
         else if (data.recurrencePeriod === "YEARLY") nextDate.setFullYear(baseDate.getFullYear() + i);
 
+        const transactionDescription = transactionInstallments 
+            ? `${data.description} (${i+1}/${totalOccurrences})`
+            : data.description;
+
         transactionToCreate.push({
             // Adiciona a contagem (ex: 1/10) na descrição para facilitar o controle
-            description: `${data.description} (${i+1}/${totalOccurrences})`,
+            description: transactionDescription,
             amount: data.amount,
             date: nextDate,
             type: data.type,
