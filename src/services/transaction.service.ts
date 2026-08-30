@@ -170,18 +170,63 @@ export const updateTransactionService = async (id: string, data: UpdateTransacti
 
     // 2. Caminho em Massa: Se pediu updateAll E a transação pertence a um grupo
     if (updateAll && transaction.recurrenceGroupId) {
-        await prisma.transaction.updateMany({
+
+        // Removemos o status para não pagar parcelas futuras sem querer
+        const { status, ...dataForBulkUpdate } = data;
+
+        //2.1 Busca todas as transações futuras deste grupo (incluindo a atual), ordenadas por data
+        const futureTransactions = await prisma.transaction.findMany({
             where: {
-                userId, 
+                userId,
                 recurrenceGroupId: transaction.recurrenceGroupId,
                 date: {
                     gte: transaction.date
                 },
             },
-            data: data,
+            orderBy: {date: 'asc'}
         });
 
-        return { message: "Transações atualizadas com sucesso"};
+        const hasNewDate = data.date !== undefined;
+        const newBaseDate = hasNewDate ? new Date(data.date!) : null;
+
+        // 2.2 Monta as instruções de atualização individuais calculando o "pulo de calendário"
+        const updatePromises = futureTransactions.map((tx, index) => {
+            let nextDate = new Date(tx.date);
+
+            if(hasNewDate && newBaseDate) {
+                // Usamos UTC para evitar que o fuso horário mude o dia acidentalmente
+                if (tx.recurrencePeriod === "MONTHLY"){
+                    // Mantém o mês e ano originais, muda só o dia
+                    nextDate.setUTCDate(newBaseDate.getUTCDate());
+                } else if (tx.recurrencePeriod === "YEARLY"){
+                    // Mantém o ano futuro original, muda o dia e o mês
+                    nextDate.setUTCDate(newBaseDate.getUTCDate());
+                    nextDate.setUTCMonth(newBaseDate.getUTCMonth());
+                } else if (tx.recurrencePeriod === "WEEKLY") {
+                    // Recalcula somando 7 dias a partir da nova data base
+                    nextDate = new Date(newBaseDate);
+                    nextDate.setUTCDate(newBaseDate.getUTCDate() + (index * 7));
+                } else if (tx.recurrencePeriod === "DAILY") {
+                    // Recalcula somando 1 dia a partir da nova data base
+                    nextDate = new Date(newBaseDate);
+                    nextDate.setUTCDate(newBaseDate.getUTCDate() + index);
+                }
+            }
+
+            // Retorna a promessa de atualização (ainda não executada)
+            return prisma.transaction.update({
+                where: {id: tx.id},
+                data: {
+                    ...dataForBulkUpdate,
+                    date: nextDate
+                }
+            });
+        });
+
+        // 2.3 Executa todas as atualizações simultaneamente de forma segura
+        await prisma.$transaction(updatePromises);
+
+        return { message: "Transações atualizadas dinamicamente com sucesso"};
     }
 
 

@@ -27,7 +27,8 @@ jest.mock("../config/prisma", ()=> ({
           },
         category: {
             findFirst: jest.fn(),
-        }
+        },
+        $transaction: jest.fn(),
     },
 }));
 
@@ -357,36 +358,81 @@ describe("PUT /transactions/:id", () => {
 
         // Ensinamos o Prisma a encontrar essa transação primeiro
         (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(mockRecurringTransaction);
-        // Ensinamos o Prisma a fingir que atualizaou várias transações
-        (prisma.transaction.updateMany as jest.Mock).mockResolvedValue({count: 5});
 
-        // 2. Disparamos o PUT querendo mudar o valor para 39.90
+        // 2. Simula o findMany achando as transações futuras
+        (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+            { id: "123e4567-e89b-12d3-a456-426614174000", date: new Date("2026-10-30T10:00:00Z"), recurrencePeriod: "MONTHLY" },
+            { id: "123e4567-e89b-12d3-a456-426614174010", date: new Date("2026-11-30T10:00:00Z"), recurrencePeriod: "MONTHLY" } 
+        ]);
+
+        // 3. Simula a execução da transação do Prisma
+        (prisma.$transaction as jest.Mock).mockResolvedValue([
+            { id: "123e4567-e89b-12d3-a456-426614174000" }, { id: "123e4567-e89b-12d3-a456-426614174010" }
+        ]);
+
+        // 4. Executa a rota
         const response = await request(app)
             .put("/transactions/123e4567-e89b-12d3-a456-426614174000")
             .query({updateAll: "true"})
             .set("Authorization", `Bearer ${mockToken}`)
-            .send({amount: 39.90});
+            .send({amount: 39.90, description: "Netflix Premium"});
+
+        // 5. Asserts atualizados para a nova lógica
+        expect(response.status).toBe(200);
+        expect(response.body).toHaveProperty("message", "Transações atualizadas dinamicamente com sucesso");
+
+        // A prova real: O prisma DEVE ter usado o findMany e o $transaction
+        expect(prisma.transaction.findMany).toHaveBeenCalled();
+        expect(prisma.$transaction).toHaveBeenCalled();
+    });
+
+    it("Deve recalcular os dias de vencimento corretamente ao alterar a data de uma recorrência", async () => {
+        // 1. Arrange: Transação original era dia 15
+        const mockTransacaoSetembro = {
+            id: "123e4567-e89b-12d3-a456-426614174010",
+            date: new Date("2026-09-15T10:00:00.000Z"),
+            recurrenceGroupId: "grupo-netflix-123",
+            userId: "123e4567-e89b-12d3-a456-426614174000"
+        };
+
+        (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(mockTransacaoSetembro);
+
+        // Simulamos as parcelas futuras que estavam marcadas para o dia 15
+        (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+            { id: "123e4567-e89b-12d3-a456-426614174010", date: new Date("2026-09-15T10:00:00.000Z"), recurrencePeriod: "MONTHLY" },
+            { id: "123e4567-e89b-12d3-a456-426614174020", date: new Date("2026-10-15T10:00:00.000Z"), recurrencePeriod: "MONTHLY" }
+        ]);
+
+        (prisma.$transaction as jest.Mock).mockResolvedValue([]);
+
+        // O usuário decidiu mudar o vencimento para o dia 20
+        const novaDataVencimento = new Date("2026-09-20T10:00:00.000Z");
+
+        // 2. Act
+        const response = await request(app)
+            .put("/transactions/123e4567-e89b-12d3-a456-426614174010")
+            .query({updateAll: "true"})
+            .set("Authorization", `Bearer ${mockToken}`)
+            .send({ date: novaDataVencimento });
 
         // 3. Assert
         expect(response.status).toBe(200);
-        expect(response.body).toHaveProperty("message", "Transações atualizadas com sucesso");
 
-        // A prova real: O prisma DEVE ter usado o updateMany
-        expect(prisma.transaction.updateMany).toHaveBeenCalledTimes(1);
+        // A prova real da matemática: O prisma tem que ter montado as atualizações futuras
+        // mantendo os meses corretos (09 e 10), mas forçando o novo dia (20).
+        expect(prisma.transaction.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: "123e4567-e89b-12d3-a456-426614174010" },
+                data: expect.objectContaining({ date: new Date("2026-09-20T10:00:00.000Z") })
+            })
+        );
 
-        // Verificamos se ele mando atualizar com os filtros corretos e os dados novos
-        expect(prisma.transaction.updateMany).toHaveBeenCalledWith({
-            where: {
-                userId: mockRecurringTransaction.userId,
-                recurrenceGroupId: mockRecurringTransaction.recurrenceGroupId,
-                date: {
-                    gte: mockRecurringTransaction.date
-                }
-            },
-            data: {
-                amount: 39.90
-            }
-        });
+        expect(prisma.transaction.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: "123e4567-e89b-12d3-a456-426614174020" },
+                data: expect.objectContaining({ date: new Date("2026-10-20T10:00:00.000Z") })
+            })
+        );
     });
 });
 
