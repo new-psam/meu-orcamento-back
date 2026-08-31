@@ -361,8 +361,13 @@ describe("PUT /transactions/:id", () => {
 
         // 2. Simula o findMany achando as transações futuras
         (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
-            { id: "123e4567-e89b-12d3-a456-426614174000", date: new Date("2026-10-30T10:00:00Z"), recurrencePeriod: "MONTHLY" },
-            { id: "123e4567-e89b-12d3-a456-426614174010", date: new Date("2026-11-30T10:00:00Z"), recurrencePeriod: "MONTHLY" } 
+            { 
+                id: "123e4567-e89b-12d3-a456-426614174000", 
+                date: new Date("2026-10-30T10:00:00Z"), 
+                recurrencePeriod: "MONTHLY",
+                description: "Assinatura Netflix"
+            },
+            { id: "123e4567-e89b-12d3-a456-426614174010", date: new Date("2026-11-30T10:00:00Z"), recurrencePeriod: "MONTHLY", description: "Assinatura Netflix" } 
         ]);
 
         // 3. Simula a execução da transação do Prisma
@@ -399,8 +404,8 @@ describe("PUT /transactions/:id", () => {
 
         // Simulamos as parcelas futuras que estavam marcadas para o dia 15
         (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
-            { id: "123e4567-e89b-12d3-a456-426614174010", date: new Date("2026-09-15T10:00:00.000Z"), recurrencePeriod: "MONTHLY" },
-            { id: "123e4567-e89b-12d3-a456-426614174020", date: new Date("2026-10-15T10:00:00.000Z"), recurrencePeriod: "MONTHLY" }
+            { id: "123e4567-e89b-12d3-a456-426614174010", date: new Date("2026-09-15T10:00:00.000Z"), recurrencePeriod: "MONTHLY", description: "Assinatura Netflix" },
+            { id: "123e4567-e89b-12d3-a456-426614174020", date: new Date("2026-10-15T10:00:00.000Z"), recurrencePeriod: "MONTHLY", description: "Assinatura Netflix" }
         ]);
 
         (prisma.$transaction as jest.Mock).mockResolvedValue([]);
@@ -434,6 +439,51 @@ describe("PUT /transactions/:id", () => {
             })
         );
     });
+
+    it("Deve preservart a numeração da parcela ao editar a descrição de uma transação parcelada", async () => {
+        // 1. 1. Arrange
+        const mockOriginal = {
+            id: "123e4567-e89b-12d3-a456-426614174000",
+            date: new Date("2026-09-15T10:00:00.000Z"),
+            recurrenceGroupId: "frupo-parcelado",
+            userId: "123e4567-e89b-12d3-a456-426614174000"
+        };
+
+        (prisma.transaction.findUnique as jest.Mock).mockResolvedValue(mockOriginal);
+
+        //Simulamos o banco devolvendo as parcelas com a numeração original
+        (prisma.transaction.findMany as jest.Mock).mockResolvedValue([
+            { id: "123e4567-e89b-12d3-a456-426614174010", date: new Date("2026-09-15T10:00:00.000Z"), recurrencePeriod: "MONTHLY", description: "tennis (2/4)" },
+            { id: "123e4567-e89b-12d3-a456-426614174020", date: new Date("2026-10-15T10:00:00.000Z"), recurrencePeriod: "MONTHLY", description: "tennis (3/4)" }
+        ]);
+
+        (prisma.$transaction as jest.Mock).mockResolvedValue([]);
+
+        //2. Act: O usuário envia novo nome (com ou sem sufixo, o backend deve tratar)
+        const response = await request(app)
+            .put("/transactions/123e4567-e89b-12d3-a456-426614174000")
+            .query({updateAll: "true"})
+            .set("Authorization", `Bearer ${mockToken}`)
+            .send({description: "aula de tennis"});
+
+        // 3. Assert
+        expect(response.status).toBe(200);
+
+        // A prova real: O prisma deve montar as atualizações colando o sufixo original no novo nome
+        expect(prisma.transaction.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: "123e4567-e89b-12d3-a456-426614174010"},
+                data: expect.objectContaining({description: "aula de tennis (2/4)"})
+            })
+        );
+        expect(prisma.transaction.update).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: { id: "123e4567-e89b-12d3-a456-426614174020"},
+                data: expect.objectContaining({description: "aula de tennis (3/4)"})
+            })
+        );
+
+    })
 });
 
 // --- DELETAR TRANSAÇÃO (Delete /:id) ----
