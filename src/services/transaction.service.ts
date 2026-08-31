@@ -213,11 +213,28 @@ export const updateTransactionService = async (id: string, data: UpdateTransacti
                 }
             }
 
+            // --- NOVA LÓGICA DE PRESERVAÇÃO DE PARCELA ---
+            let finalDescription = tx.description; // Padrão: mantém o que já está no banco
+            
+            if (dataForBulkUpdate.description) {
+                // 1. Remove qualquer "(X/Y)" do nome que veio do frontend
+                const baseIncomingName = dataForBulkUpdate.description.replace(/\s\(\d+\/\d+\)$/, "");
+                
+                // 2. Busca qual era a numeração original desta parcela específica no banco
+                const originalSuffix = tx.description.match(/\s\(\d+\/\d+\)$/);
+                
+                // 3. Monta o nome final preservando a numeração correta
+                finalDescription = originalSuffix 
+                    ? `${baseIncomingName}${originalSuffix[0]}` 
+                    : baseIncomingName;
+            }
+
             // Retorna a promessa de atualização (ainda não executada)
             return prisma.transaction.update({
                 where: {id: tx.id},
                 data: {
                     ...dataForBulkUpdate,
+                    description: finalDescription,
                     date: nextDate
                 }
             });
