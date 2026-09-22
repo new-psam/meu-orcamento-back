@@ -49,7 +49,7 @@ model Transaction {
   userId            String
   user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   categoryId        String?
-  category          Category?           @relation(fields: [categoryId], references: [id])
+  category          Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   isRecurring       Boolean             @default(false)
   recurrencePeriod  TransactionPeriod? 
