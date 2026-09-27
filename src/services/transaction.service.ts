@@ -122,7 +122,8 @@ export const getTransactionService = async (query: GetTransactionQuery, userId: 
         where,
         skip,
         take,
-        orderBy: { date: "desc" }
+        orderBy: { date: "desc" },
+        include: { category: true }
     });
 
     const total = await prisma.transaction.count({ where });
@@ -141,7 +142,8 @@ export const getTransactionService = async (query: GetTransactionQuery, userId: 
 
 export const getTransactionByIdService = async (id: string, userId: string) => {
     const transaction = await prisma.transaction.findUnique({
-        where: { id, userId }
+        where: { id, userId },
+        include: { category: true }
     });
 
     if (!transaction) {
