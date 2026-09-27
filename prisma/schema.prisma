@@ -1,66 +1,60 @@
-datasource db {
-  provider = "postgresql"
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider = "postgresql"
+}
+
 model User {
-  id            String          @id @default(uuid())
-  email         String          @unique
-  name          String?
-  password      String
-  role          Role            @default(USER)
-  createdAt     DateTime        @default(now())        
-  updatedAt     DateTime        @updatedAt
-  transactions  Transaction[]
-  categories    Category[]
+  id           String        @id @default(uuid())
+  email        String        @unique
+  name         String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  password     String
+  role         Role          @default(USER)
+  categories   Category[]
+  transactions Transaction[]
 
   @@map("users")
 }
 
 model Category {
-  id            String          @id @default(uuid())
-  name          String          // Ex: "Educação", "Contas Fixas", "Investimentos"
-  color         String?         // Para salvar as cores da planilha (ex: "azul", "amarelo")
+  id            String        @id @default(uuid())
+  name          String
+  color         String?
   userId        String
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt     DateTime      @default(now())
+  parentId      String?
+  parent        Category?     @relation("SubCategories", fields: [parentId], references: [id])
+  SubCategories Category[]    @relation("SubCategories")
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions  Transaction[]
-
-  // --- SUBCATEGORIAS --
-  parentId      String?         // Se for null, é uma categoria Pai. Se tiver um ID, é Filha
-  parent        Category?       @relation("SubCategories", fields: [parentId], references: [id])
-  SubCategories Category[]      @relation("SubCategories")
-  
-  createdAt     DateTime        @default(now())
 
   @@unique([name, userId])
   @@map("categories")
 }
 
 model Transaction {
-  id                String              @id @default(uuid())
-  description       String              // Ex: "escola joão", "nutri gourmet"
-  amount            Decimal             @db.Decimal(10, 2)  // Valor do lançamento
-  date              DateTime            // Data da transação
-  status            TransactionStatus   @default(PENDING) //PAID ou PENDING
+  id                String             @id @default(uuid())
+  description       String
+  amount            Decimal            @db.Decimal(10, 2)
+  date              DateTime
+  status            TransactionStatus  @default(PENDING)
   type              TransactionType
   userId            String
-  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   categoryId        String?
-  category          Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-
-  isRecurring       Boolean             @default(false)
-  recurrencePeriod  TransactionPeriod? 
-  recurrenceGroupId String?             // Opcional, guarda o ID do grupo para vincular os meses
-
-  createdAt         DateTime              @default(now())        
-  updatedAt         DateTime              @updatedAt
-
-  @@map("transactions")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  isRecurring       Boolean            @default(false)
+  recurrenceGroupId String?
+  recurrencePeriod  TransactionPeriod?
+  category          Category?          @relation(fields: [categoryId], references: [id])
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@map("transactions")
 }
 
 enum TransactionStatus {
