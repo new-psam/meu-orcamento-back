@@ -295,8 +295,9 @@ export const calculateTransactionSummary = async (
     // Definimos o início e fim do mês para o Prisma filtrar
     const startDate = new Date(year, month -1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59);
-    // 1. O Serviço faz a busca no banco
-    const transactions = await prisma.transaction.findMany({
+
+    // 1. Busca do Mês atual (Para gráficos de Receitas vs Despesas)
+    const monthlyTransactions = await prisma.transaction.findMany({
         where: { 
             userId,
             date: {
@@ -309,21 +310,43 @@ export const calculateTransactionSummary = async (
     });
 
     // 2. O serviço faz a matemática do negócio
-    const { incomes, expenses} = transactions.reduce(
+    const { incomes, expenses} = monthlyTransactions.reduce(
         (acc, transaction) => {
             if (transaction.type === 'INCOME') {
                 acc.incomes += Number(transaction.amount);
             } else if (transaction.type === 'EXPENSE') {
                 acc.expenses += Number(transaction.amount);
             }
-            return acc; // Passa o balse atualizado para a próxima interação
+            return acc; 
         },
         { incomes: 0, expenses: 0} // Este é o nosso acumulador inicial (acc)
+    );
+
+    // 2. Busca do Histórico Total (Para o saldo Acumulado da Conta)
+    // Usa o "lte: endDate" para pegar tudo desde o inicio (2023) até o fim do mês atual
+    const historicalTransactions = await prisma.transaction.findMany({
+        where: {
+            userId,
+            date: {
+                lte: endDate
+            },
+            ...(status ? {status: status as "PAID" | "PENDING"} : {})
+        },
+        select: { amount: true, type: true}
+    });
+
+    const accumulatedBalance = historicalTransactions.reduce(
+        (acc, transaction) => {
+            return transaction.type === 'INCOME'
+                ? acc + Number(transaction.amount)
+                : acc - Number(transaction.amount);
+        },
+        0 // Saldo inicial
     );
 
     return {
         incomes,
         expenses,
-        balance: incomes - expenses
+        balance: accumulatedBalance // O balance agora é o caixa real continuo!
     };
-}
+};
