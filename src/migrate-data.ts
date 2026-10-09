@@ -37,11 +37,12 @@ async function importCSV(fileName:  string) {
         where: { email: 'marcelinops@gmail.com'}
     });
     if (!user) {
-        throw new Error('Usuário pawn@test.com não encontrado no banco local.');
+        throw new Error('Usuário não encontrado no banco.');
     }
 
     console.log(`\nIniciando importação de ${fileName} para o usuário: ${user.email}`);
     let successCount = 0;
+    let skipCount = 0;
 
     for (const line of lines) {
         // Ignora linhas totalmente vazias no final do arquivo
@@ -65,6 +66,23 @@ async function importCSV(fileName:  string) {
         const type = amountNum >= 0 ? 'INCOME' : 'EXPENSE';
         const absoluteAmount = Math.abs(amountNum);
         const transactionDate = parseDate(rawDate);
+        const cleanDescription = description.replace(/"/g, '').trim();
+
+        // PRoteção contra duplicatas: Busca se a transação já existe
+        const existingTransaction = await prisma.transaction.findFirst({
+            where: {
+                userId: user.id,
+                date: transactionDate,
+                description: cleanDescription,
+                amount: absoluteAmount,
+                type: type
+            }
+        });
+
+        if (existingTransaction) {
+            skipCount++;
+            continue; // Pula para a próxima linha se a transação já existir
+        }
 
         // 3. Verificar se a categoria já existe no banco de dados
         cleanCategoryName = cleanCategoryName.charAt(0).toUpperCase() + cleanCategoryName.slice(1).toLowerCase();
@@ -86,7 +104,7 @@ async function importCSV(fileName:  string) {
         // 4. Gravar a transação no banco de dados
         await prisma.transaction.create({
             data: {
-                description: description.replace(/"/g, '').trim(),
+                description: cleanDescription,
                 amount: absoluteAmount,
                 type: type,
                 status: 'PAID',
@@ -101,6 +119,7 @@ async function importCSV(fileName:  string) {
     }
 
     console.log(`✅ Sucesso! ${successCount} transações migradas de ${fileName}.`);
+    console.log(`⚠️  Puladas! ${skipCount} transações já existentes.`);
 }
 
 async function main() {
@@ -118,7 +137,4 @@ async function main() {
     }
 }
 
-main().catch((error) => {
-    console.error('Erro durante a importação:', error);
-    process.exitCode = 1;
-});
+main().catch(console.error);
