@@ -34,7 +34,7 @@ async function importCSV(fileName:  string) {
     
     //1. Identificar o usuário no Banco
     const user = await prisma.user.findUnique({
-        where: { email: 'pawn@test.com'}
+        where: { email: 'marcelinops@gmail.com'}
     });
     if (!user) {
         throw new Error('Usuário pawn@test.com não encontrado no banco local.');
