@@ -116,4 +116,9 @@ async function main() {
         await prisma.$disconnect();
         await pool.end();
     }
-}main();
+}
+
+main().catch((error) => {
+    console.error('Erro durante a importação:', error);
+    process.exitCode = 1;
+});
