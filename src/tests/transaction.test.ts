@@ -227,6 +227,7 @@ describe("GET /transactions", () => {
             take: 10,
             skip: 0,
             orderBy: { date: "desc"},
+            include: { category: true }
         });
     });
 
@@ -250,6 +251,7 @@ describe("GET /transactions", () => {
             take: 5,
             skip: 5,
             orderBy: { date: "desc"},
+            include: { category: true }
         });
     });
 
